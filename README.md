@@ -28,7 +28,6 @@ raspi-setup/
 │   ├── restart_services.sh       # Restarts network-related services
 │   ├── connect_wifi.py           # Connects to the provided Wi-Fi
 │   ├── send_activation.py        # Communicates with the central server for activation
-│   ├── display_qr_code.py        # Displays a QR code on the screen
 │   └── stream_url.py             # Launches the browser for streaming content
 ├── config/
 │   ├── hostapd.conf              # Configuration for hostapd (Access Point)

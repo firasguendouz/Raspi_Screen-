@@ -18,3 +18,13 @@ selenium>=4.0.0
 # Development Tools
 python-dotenv>=0.19.0
 pytest>=6.2.5  # For testing
+
+# GUI and WebView (pywebview dependencies)
+pywebview>=5.0.0
+pycairo>=1.20.0
+PyGObject>=3.42.0
+qtpy>=1.11.0  # Optional, for QT GUI backend
+
+# Optional Dependencies
+bottle>=0.13.0  # For lightweight web server (used by pywebview)
+proxy-tools>=0.1.0  # For proxy handling (used by pywebview)
