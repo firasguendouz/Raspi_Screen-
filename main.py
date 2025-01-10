@@ -4,7 +4,6 @@ from server.wifi_config import WiFiConfig
 from server.qr_code import generate_wifi_qr
 from scripts.connect_wifi import connect_wifi
 from scripts.send_activation import ActivationClient
-from scripts.display_qr_code import generate_and_display_qr
 
 class SetupManager:
     def __init__(self):
@@ -70,7 +69,7 @@ def main():
             return
 
         # Generate and display QR code for AP credentials
-        generate_and_display_qr("RaspberryAP", "raspberry")
+        generate_wifi_qr("RaspberryAP", "raspberry")
 
         # Wait for Wi-Fi configuration via web server
         print("Waiting for Wi-Fi configuration...")
