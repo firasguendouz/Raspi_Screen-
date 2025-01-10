@@ -2,12 +2,20 @@ import requests
 import uuid
 import socket
 from datetime import datetime
+from dotenv import load_dotenv
+import os
 
 class ActivationClient:
     """
     Handles communication with the central server for device activation.
     """
-    def __init__(self, server_url="http://localhost:5001"):
+    def __init__(self, server_url):
+        """
+        Initialize the ActivationClient.
+
+        Args:
+            server_url (str): The URL of the central server (e.g., "http://<IP>:5001").
+        """
         self.server_url = server_url
         self.device_id = self._get_device_id()
 
@@ -41,7 +49,13 @@ class ActivationClient:
             return False, f"Connection error: {str(e)}"
 
 if __name__ == "__main__":
-    client = ActivationClient(server_url="http://central-server.com")
+    # Load environment variables from .env
+    load_dotenv()
+
+    # Retrieve the server URL from the .env file
+    SERVER_URL = os.getenv("SERVER_URL", "http://localhost:5001")
+
+    client = ActivationClient(server_url=SERVER_URL)
     success, result = client.send_activation_request()
 
     if success:
