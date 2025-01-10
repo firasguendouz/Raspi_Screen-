@@ -3,7 +3,14 @@ import time
 
 def connect_wifi(ssid, password):
     """
-    Connect to a WiFi network using wpa_supplicant
+    Connect to a Wi-Fi network using wpa_supplicant
+
+    Args:
+        ssid (str): Wi-Fi network name
+        password (str): Wi-Fi password
+
+    Returns:
+        bool: True if connected successfully, False otherwise
     """
     try:
         # Create wpa_supplicant.conf file
@@ -27,18 +34,24 @@ def connect_wifi(ssid, password):
         subprocess.run(['sudo', 'ifconfig', 'wlan0', 'up'])
         time.sleep(2)
         
-        # Reconnect to wireless network
+        # Reconfigure wireless network
         subprocess.run(['sudo', 'wpa_cli', '-i', 'wlan0', 'reconfigure'])
         
-        print(f"Successfully connected to {ssid}")
-        return True
+        # Check connection status
+        result = subprocess.run(['iwgetid'], capture_output=True, text=True)
+        if ssid in result.stdout:
+            print(f"Successfully connected to {ssid}")
+            return True
+        else:
+            print(f"Failed to connect to {ssid}")
+            return False
         
     except Exception as e:
-        print(f"Failed to connect to WiFi: {str(e)}")
+        print(f"Error connecting to Wi-Fi: {e}")
         return False
 
 if __name__ == "__main__":
     # Example usage
-    WIFI_SSID = "your_wifi_name"
-    WIFI_PASSWORD = "your_wifi_password"
+    WIFI_SSID = "YourSSID"
+    WIFI_PASSWORD = "YourPassword"
     connect_wifi(WIFI_SSID, WIFI_PASSWORD)
