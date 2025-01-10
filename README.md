@@ -9,6 +9,9 @@ This project enables Raspberry Pi devices to serve as screen management systems 
 4. **Screen Activation**: Upon successful connection, the Raspberry Pi communicates with a central server to activate the screen.
 5. **Streaming Mode**: After activation, the Raspberry Pi streams advertisements or other content from the server in full-screen mode.
 
+
+
+
 ## Project Structure
 ```
 raspi-setup/
@@ -64,6 +67,18 @@ raspi-setup/
    git clone <repository-url>
    cd raspi-setup
    ```
+Create a Virtual Environment
+Using venv:
+
+python3 -m venv env
+
+Using virtualenv:
+
+virtualenv env
+
+
+source env/bin/activate
+
 
 2. **Install Python Dependencies**:
    ```bash
