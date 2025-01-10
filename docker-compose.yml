@@ -1,62 +1,36 @@
+version: '3.8'
 
 services:
-    web-server:
-        build:
-            context: .
-            dockerfile: Dockerfile
-        container_name: raspi-setup-server
-        restart: unless-stopped
-        ports:
-            - "80:80"
-        volumes:
-            - ./server:/app/server
-            - ./scripts:/app/scripts
-            - ./static:/app/static
-            - ./templates:/app/templates
-        environment:
-            - FLASK_APP=${FLASK_APP}
-            - FLASK_ENV=${FLASK_ENV}
-        env_file:
-            - .env
-        privileged: true
-        network_mode: "host"
-        healthcheck:
-            test: ["CMD", "curl", "-f", "http://localhost:80"]
-            interval: 30s
-            timeout: 10s
-            retries: 3
-
-    activation-service:
-        build:
-            context: .
-            dockerfile: Dockerfile.activation
-        container_name: raspi-activation-service
-        restart: unless-stopped
-        ports:
-            - "5001:5001"
-        volumes:
-            - ./scripts:/app/scripts
-        environment:
-            - SERVER_PORT=${SERVER_PORT}
-        env_file:
-            - .env
-        depends_on:
-            - web-server
-
-    monitoring:
-        build:
-            context: .
-            dockerfile: Dockerfile.monitoring
-        container_name: raspi-monitoring
-        restart: unless-stopped
-        volumes:
-            - ./logs:/app/logs
-            - /var/log:/host/var/log:ro
-        privileged: true
-        depends_on:
-            - web-server
+  raspi-screen:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: raspi-screen
+    restart: unless-stopped
+    ports:
+      - "80:80"  # Flask server
+      - "5001:5001"  # Activation service
+    volumes:
+      - ./logs:/app/logs  # Log directory
+      - ./static:/app/static  # Static files
+      - ./config:/app/config  # Configurations (e.g., hostapd, dnsmasq)
+    environment:
+      - FLASK_APP=server/app.py
+      - FLASK_ENV=production
+      - SERVER_PORT=5001
+      - SERVER_URL=http://192.168.0.99:5001
+      - TZ=Europe/Paris
+      - PYTHONUNBUFFERED=1
+    privileged: true  # Required for network management
+    networks:
+      - raspi-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s  # Give enough time for the service to start
 
 networks:
-    default:
-        name: raspi-network
-        driver: bridge
+  raspi-network:
+    driver: bridge
