@@ -70,13 +70,11 @@ if __name__ == "__main__":
     print(f"Available networks: {networks}")
 
     # Example usage: Connect to a network
-    ssid = "YourSSID"
-    password = "YourPassword"
+    ssid = "Vodafone-AAB4"
+    password = "RxymGnMT9p3LzPzP"
     if wifi_config.connect_to_wifi(ssid, password):
         print(f"Connected to {ssid}")
     else:
         print(f"Failed to connect to {ssid}")
 
-    # Get current connection
-    current_ssid = wifi_config.get_current_connection()
-    print(f"Currently connected to: {current_ssid}")
+    
