@@ -1,9 +1,9 @@
-import webbrowser
+import webview
 import sys
 
 def launch_streaming(url=None):
     """
-    Launch the default web browser in kiosk mode to stream content.
+    Launch a pywebview window in full-screen mode to stream content.
 
     Args:
         url (str): The URL of the content to stream.
@@ -13,10 +13,10 @@ def launch_streaming(url=None):
         default_url = "http://example.com/stream"
         stream_url = url if url else default_url
 
-        # Open the URL in the default web browser
+        # Open the streaming URL in a pywebview window
         print(f"Launching streaming URL: {stream_url}")
-        webbrowser.open(stream_url)
-
+        webview.create_window("Streaming", stream_url, fullscreen=True)
+        webview.start()
     except Exception as e:
         print(f"Error launching streaming URL: {e}")
         sys.exit(1)
