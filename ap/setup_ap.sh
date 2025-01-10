@@ -18,35 +18,13 @@ systemctl stop hostapd
 systemctl stop dnsmasq
 
 # Configure static IP for wlan0
-cat > /etc/dhcpcd.conf << EOF
-interface wlan0
-     static ip_address=192.168.4.1/24
-     nohook wpa_supplicant
-EOF
+cat ./config/dhcpcd.conf > /etc/dhcpcd.conf
 
 # Configure hostapd
-cat > /etc/hostapd/hostapd.conf << EOF
-interface=wlan0
-driver=nl80211
-ssid=RaspberryAP
-hw_mode=g
-channel=7
-wmm_enabled=0
-macaddr_acl=0
-auth_algs=1
-ignore_broadcast_ssid=0
-wpa=2
-wpa_passphrase=raspberry
-wpa_key_mgmt=WPA-PSK
-wpa_pairwise=TKIP
-rsn_pairwise=CCMP
-EOF
+cat ./config/hostapd.conf > /etc/hostapd/hostapd.conf
 
 # Configure dnsmasq
-cat > /etc/dnsmasq.conf << EOF
-interface=wlan0
-dhcp-range=192.168.4.2,192.168.4.20,255.255.255.0,24h
-EOF
+cat ./config/dnsmasq.conf > /etc/dnsmasq.conf
 
 # Enable hostapd
 sed -i 's/#DAEMON_CONF=""/DAEMON_CONF="\/etc\/hostapd\/hostapd.conf"/' /etc/default/hostapd

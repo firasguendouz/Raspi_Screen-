@@ -1,18 +1,34 @@
 #!/bin/bash
 
+# Script to stop Access Point mode
+# Must be run with sudo privileges
+
+# Check if script is run as root
+if [[ $EUID -ne 0 ]]; then
+    echo "This script must be run as root (sudo)"
+    exit 1
+fi
+
 # Stop the access point services
-sudo systemctl stop hostapd
-sudo systemctl stop dnsmasq
+echo "Stopping Access Point services..."
+systemctl stop hostapd
+systemctl stop dnsmasq
 
 # Disable services from starting on boot
-sudo systemctl disable hostapd
-sudo systemctl disable dnsmasq
+echo "Disabling services from starting on boot..."
+systemctl disable hostapd
+systemctl disable dnsmasq
 
-# Stop the access point interface
-sudo ip link set wlan0 down
+# Bring down the wlan0 interface
+echo "Bringing down the wlan0 interface..."
+ip link set wlan0 down
 
-# Restore normal networking
-sudo systemctl restart dhcpcd
-sudo systemctl restart networking
+# Restore normal networking configuration
+echo "Restoring normal networking configuration..."
+sed -i '/interface wlan0/d' /etc/dhcpcd.conf
+sed -i '/static ip_address=192.168.4.1/d' /etc/dhcpcd.conf
+systemctl restart dhcpcd
+systemctl restart networking
 
-echo "Access Point mode has been stopped"
+# Confirm the Access Point has been stopped
+echo "Access Point mode has been stopped and normal networking restored."
