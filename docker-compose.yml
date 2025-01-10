@@ -1,0 +1,62 @@
+
+services:
+    web-server:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: raspi-setup-server
+        restart: unless-stopped
+        ports:
+            - "80:80"
+        volumes:
+            - ./server:/app/server
+            - ./scripts:/app/scripts
+            - ./static:/app/static
+            - ./templates:/app/templates
+        environment:
+            - FLASK_APP=${FLASK_APP}
+            - FLASK_ENV=${FLASK_ENV}
+        env_file:
+            - .env
+        privileged: true
+        network_mode: "host"
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:80"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+
+    activation-service:
+        build:
+            context: .
+            dockerfile: Dockerfile.activation
+        container_name: raspi-activation-service
+        restart: unless-stopped
+        ports:
+            - "5001:5001"
+        volumes:
+            - ./scripts:/app/scripts
+        environment:
+            - SERVER_PORT=${SERVER_PORT}
+        env_file:
+            - .env
+        depends_on:
+            - web-server
+
+    monitoring:
+        build:
+            context: .
+            dockerfile: Dockerfile.monitoring
+        container_name: raspi-monitoring
+        restart: unless-stopped
+        volumes:
+            - ./logs:/app/logs
+            - /var/log:/host/var/log:ro
+        privileged: true
+        depends_on:
+            - web-server
+
+networks:
+    default:
+        name: raspi-network
+        driver: bridge
