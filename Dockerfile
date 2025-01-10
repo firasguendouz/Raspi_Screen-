@@ -5,7 +5,10 @@ FROM balenalib/raspberrypi3-debian:latest
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Europe/Paris
 ENV PYTHONUNBUFFERED=1
-
+ENV FLASK_APP=server/app.py
+ENV FLASK_ENV=production
+ENV SERVER_PORT=5001
+ENV SERVER_URL=http://192.168.0.99:5001
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
