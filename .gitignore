@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+venv/
+env/
+.env
+
+# Logs and databases
+*.log
+logs/*
+*.db
+*.sqlite3
+
+# QR Code images
+wifi_qr.png
+static/qrcode.png
+
+# Configuration files with sensitive data
+config/wpa_supplicant.conf
+config/hostapd.conf
+config/dnsmasq.conf
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Operating System
+.DS_Store
+Thumbs.db
+
+# Project specific
+ap/tmp/
+*.bak
