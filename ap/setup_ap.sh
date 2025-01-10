@@ -10,8 +10,8 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # Install required packages
-apt-get update
-apt-get install -y hostapd dnsmasq
+#apt-get update
+#apt-get install -y hostapd dnsmasq
 
 # Stop services initially
 systemctl stop hostapd

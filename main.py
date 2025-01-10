@@ -1,14 +1,17 @@
+import os
 import subprocess
 import time
+
+from dotenv import load_dotenv
 from server.wifi_config import WiFiConfig
 from server.qr_code import generate_wifi_qr
 from scripts.connect_wifi import connect_wifi
 from scripts.send_activation import ActivationClient
 
 class SetupManager:
-    def __init__(self):
+    def __init__(self, server_url):
         self.wifi_config = WiFiConfig()
-        self.activation_client = ActivationClient()
+        self.activation_client = ActivationClient(server_url=server_url)  # Pass server_url to ActivationClient
 
     def start_ap_mode(self):
         """Initialize Access Point mode."""
@@ -57,8 +60,13 @@ class SetupManager:
             return False
 
 def main():
-    setup_manager = SetupManager()
+    # Load environment variables from .env
+    load_dotenv()
 
+    # Retrieve the server URL from the .env file
+    SERVER_URL = os.getenv("SERVER_URL", "http://localhost:5001")
+
+    setup_manager = SetupManager(server_url=SERVER_URL)
     # Check if the device is already connected to the internet
     if not setup_manager.check_internet_connection():
         print("No internet connection detected. Starting Access Point mode...")
