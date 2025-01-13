@@ -20,8 +20,8 @@ raspi-setup/
 │   ├── stop_ap.sh                # Script to stop Access Point mode
 │   └── check_connection.sh       # Script to monitor connectivity and restart AP if necessary
 ├── server/
-│   ├── app.py                    # Flask web server for Wi-Fi configuration
-│   ├── qr_code.py                # Generates QR code for AP credentials
+│   ├── app.py                    # Flask web server for Wi-Fi credentials submit from user part
+│   ├── qr_code.py                # Generates QR code for AP credentials connect via scan QR code 
 │   ├── wifi_config.py            # Handles Wi-Fi setup logic
 │   └── __init__.py               # Marks the server folder as a Python module
 ├── scripts/
