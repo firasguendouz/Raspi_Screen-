@@ -16,36 +16,35 @@ This project enables Raspberry Pi devices to serve as screen management systems 
 ```
 raspi-setup/
 ├── ap/
-│   ├── setup_ap.sh               # Script to initialize Access Point mode
-│   ├── stop_ap.sh                # Script to stop Access Point mode
-│   └── check_connection.sh       # Script to monitor connectivity and restart AP if necessary
+│   ├── setup_ap.sh
+│   ├── stop_ap.sh
+│   └── check_connection.sh
 ├── server/
-│   ├── app.py                    # Flask web server for Wi-Fi credentials submit from user part
-│   ├── qr_code.py                # Generates QR code for AP credentials connect via scan QR code 
-│   ├── wifi_config.py            # Handles Wi-Fi setup logic
-│   └── __init__.py               # Marks the server folder as a Python module
+│   ├── app.py
+│   ├── qr_code.py
+│   └── __init__.py
 ├── scripts/
-│   ├── restart_services.sh       # Restarts network-related services
-│   ├── connect_wifi.py           # Connects to the provided Wi-Fi
-│   ├── send_activation.py        # Communicates with the central server for activation
-│   └── stream_url.py             # Launches the browser for streaming content
+│   ├── connect_wifi.py
+│   ├── send_activation.py
+│   └── stream_url.py
 ├── config/
-│   ├── hostapd.conf              # Configuration for hostapd (Access Point)
-│   ├── dnsmasq.conf              # Configuration for dnsmasq (DHCP and DNS)
-│   └── wpa_supplicant.conf       # Configuration for Wi-Fi credentials
-├── static/
-│   ├── qrcode.png                # Placeholder for generated QR code
-│   ├── default.html              # Default HTML file for offline mode
-│   └── logo.png                  # Placeholder for project logo
+│   ├── hostapd.conf
+│   ├── dnsmasq.conf
+│   └── wpa_supplicant.conf
 ├── templates/
-│   ├── index.html                # Web page for entering Wi-Fi credentials
-│   └── success.html              # Confirmation page after successful setup
+│   ├── index.html
+│   └── success.html
+├── static/
+│   ├── logo.png
+│   ├── default.html
+│   └── qrcode.png
 ├── logs/
-│   ├── setup.log                 # Log file for setup operations
-│   ├── ap.log                    # Log file for Access Point operations
-│   └── connection.log            # Log file for connection attempts
-├── main.py                       # Main script to orchestrate the workflow
-└── README.md                     # Documentation for the project
+│   ├── setup.log
+│   ├── ap.log
+│   └── connection.log
+├── main.py
+└── README.md
+
 ```
 
 ## How to Run the Project
