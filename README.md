@@ -145,3 +145,41 @@ This to-do list breaks the project into manageable steps. Cross off tasks as you
 ---
 
 This document ensures all contributors understand the project structure, functionality, and setup process. Work through the to-do list step by step, ensuring each feature is tested and functional before proceeding to the next.
+
+
+
+TODO 
+
+
+start main.py
+start a pywebview full screen to display logs and and info 
+raspi display checking if connected 
+raspi check if its connected
+YES - raspi display that is already connected and sending activation 
+send activation -  display DONE
+pywebview and code stops 
+stop main
+
+
+and for 
+start main.py
+start a pywebview full screen to display logs and and info 
+raspi display checking if connected 
+raspi check if its connected
+No- raspi display raspi not connected 
+raspi Start Acccess point - and it display Loading icon untill AP is rterady then display QR code to connect to raspiAP 
+
+user connect by scanning code 
+user connected - raspi display client connected and the qr code for  connecting raspi ap it dissapear and another it get displayed user scan to visit the raspi local hosted page for creds 
+
+user scan and enter page - raspi detect by löistening and it display a msg in progress instead of QR code of website 
+
+user submit creds - raspi display getting creds .....
+
+raspi check creds if connected or fails 
+if connected in pywebview it display connected then stop 
+and if no 
+says in pywebview creds wrong and repeat process from AP creations an QR code scan :::
+send activation -  display DONE
+pywebview and code stops 
+stop main

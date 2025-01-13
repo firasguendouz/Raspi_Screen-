@@ -2,105 +2,115 @@ import os
 import subprocess
 import time
 from multiprocessing import Process
+import webview
 from colorama import Fore, Style, init
 from dotenv import load_dotenv
-from server.app import app  # Import the Flask app
 from server.qr_code import generate_wifi_qr
+from scripts.connect_wifi import connect_wifi
 from scripts.send_activation import ActivationClient
+from server.app import app  # Flask app
 
-# Initialize colorama for colored console output
+# Initialize colorama
 init(autoreset=True)
 
 class SetupManager:
     def __init__(self, server_url):
         self.activation_client = ActivationClient(server_url=server_url)
 
-    def log(self, message, level="info"):
-        """Enhanced logging with colors based on log level."""
-        colors = {
-            "info": Fore.CYAN,
-            "success": Fore.GREEN,
-            "warning": Fore.YELLOW,
-            "error": Fore.RED,
-        }
-        print(f"{colors.get(level, Fore.WHITE)}{message}{Style.RESET_ALL}")
+    def log(self, message):
+        """Log message to console and update UI."""
+        print(Fore.CYAN + message + Style.RESET_ALL)
+        webview.window.evaluate_js(f'document.getElementById("log").innerText += "{message}\\n";')
 
     def start_ap_mode(self):
-        """Initialize Access Point mode."""
+        """Start Access Point mode."""
+        self.log("Starting Access Point...")
         try:
             subprocess.run(['sudo', 'bash', 'ap/setup_ap.sh'], check=True)
-            self.log("Access Point mode started successfully.", "success")
-            return True
+            self.log("Access Point started. Generating QR code...")
+            generate_wifi_qr("RaspberryAP", "raspberry")
+            self.log("QR code generated. Ready to connect.")
         except subprocess.CalledProcessError as e:
-            self.log(f"Failed to start Access Point mode: {e}", "error")
-            return False
+            self.log(f"Failed to start Access Point: {e}")
 
     def stop_ap_mode(self):
         """Stop Access Point mode."""
+        self.log("Stopping Access Point...")
         try:
             subprocess.run(['sudo', 'bash', 'ap/stop_ap.sh'], check=True)
-            self.log("Access Point mode stopped successfully.", "success")
-            return True
+            self.log("Access Point stopped.")
         except subprocess.CalledProcessError as e:
-            self.log(f"Failed to stop Access Point mode: {e}", "error")
-            return False
+            self.log(f"Failed to stop Access Point: {e}")
 
     def check_internet_connection(self):
-        """Check internet connectivity."""
+        """Check if the device has internet connectivity."""
+        self.log("Checking internet connection...")
         try:
             subprocess.run(['ping', '-c', '1', '8.8.8.8'], check=True)
-            self.log("Internet connection detected.", "success")
+            self.log("Internet connected.")
             return True
         except subprocess.CalledProcessError:
-            self.log("No internet connection detected.", "warning")
+            self.log("No internet connection detected.")
             return False
 
     def activate_device(self):
         """Send activation request to the central server."""
+        self.log("Sending activation request...")
         success, result = self.activation_client.send_activation_request()
         if success:
-            self.log("Device activated successfully.", "success")
+            self.log("Activation successful!")
+            return True
         else:
-            self.log(f"Activation failed: {result}", "error")
-        return success, result
+            self.log(f"Activation failed: {result}")
+            return False
 
+    def handle_user_credentials(self):
+        """Handle the Flask server and process user credentials."""
+        flask_process = Process(target=self.start_flask_server)
+        flask_process.start()
 
-def start_flask_server():
-    """Start the Flask server."""
-    app.run(host="0.0.0.0", port=80)
+        self.log("Waiting for user to submit credentials...")
+        while not self.check_internet_connection():
+            time.sleep(10)
+
+        self.log("Stopping Flask server and Access Point...")
+        flask_process.terminate()
+        flask_process.join()
+        self.stop_ap_mode()
+
+    def start_flask_server(self):
+        """Start the Flask server."""
+        app.run(host="0.0.0.0", port=80)
 
 def main():
+    # Load environment variables
     load_dotenv()
     SERVER_URL = os.getenv("SERVER_URL", "http://localhost:5001")
 
     setup_manager = SetupManager(server_url=SERVER_URL)
 
-    if not setup_manager.check_internet_connection():
-        setup_manager.log("No internet connection detected. Starting Access Point mode...", "warning")
-        if not setup_manager.start_ap_mode():
-            return
+    # Start pywebview UI
+    def webview_ready():
+        if setup_manager.check_internet_connection():
+            setup_manager.log("Device is already connected to the internet.")
+            if setup_manager.activate_device():
+                setup_manager.log("Setup completed successfully. Exiting...")
+                webview.destroy_window()
+        else:
+            setup_manager.log("Device not connected. Starting Access Point mode...")
+            setup_manager.start_ap_mode()
+            setup_manager.handle_user_credentials()
+            if setup_manager.check_internet_connection():
+                if setup_manager.activate_device():
+                    setup_manager.log("Setup completed successfully. Exiting...")
+                else:
+                    setup_manager.log("Activation failed. Please try again.")
+            else:
+                setup_manager.log("Failed to connect. Restarting process...")
+                main()
 
-        # Start Flask server for credentials
-        flask_process = Process(target=start_flask_server)
-        flask_process.start()
-
-        setup_manager.log("Waiting for Wi-Fi credentials...", "info")
-        while not setup_manager.check_internet_connection():
-            time.sleep(10)
-
-        # Stop AP mode and Flask server after connection
-        setup_manager.stop_ap_mode()
-        flask_process.terminate()
-        flask_process.join()
-
-    setup_manager.log("Internet connection established. Activating device...", "info")
-    success, result = setup_manager.activate_device()
-
-    if success:
-        setup_manager.log("Setup completed successfully.", "success")
-    else:
-        setup_manager.log("Setup failed during activation.", "error")
-
+    webview.create_window("Raspberry Pi Setup", html="<div id='log'></div>")
+    webview.start(webview_ready, debug=True)
 
 if __name__ == "__main__":
     try:
