@@ -11,7 +11,7 @@ from scripts.send_activation import ActivationClient
 class SetupManager:
     def __init__(self, server_url):
         self.wifi_config = WiFiConfig()
-        self.activation_client = ActivationClient(server_url=server_url)  # Pass server_url to ActivationClient
+        self.activation_client = ActivationClient(server_url=server_url)
 
     def start_ap_mode(self):
         """Initialize Access Point mode."""
@@ -24,10 +24,11 @@ class SetupManager:
             return False
 
     def stop_ap_mode(self):
-        """Stop Access Point mode."""
+        """Stop Access Point mode and reset DNS."""
         try:
             subprocess.run(['sudo', 'bash', 'ap/stop_ap.sh'], check=True)
-            print("Access Point mode stopped successfully.")
+            self.reset_dns()
+            print("Access Point mode stopped successfully and DNS reset.")
             return True
         except subprocess.CalledProcessError as e:
             print(f"Failed to stop Access Point mode: {e}")
@@ -42,8 +43,21 @@ class SetupManager:
             return False
 
     def setup_wifi(self, ssid, password):
-        """Configure Wi-Fi connection."""
-        return connect_wifi(ssid, password)
+        """Configure Wi-Fi connection and reset DNS."""
+        if connect_wifi(ssid, password):
+            self.reset_dns()
+            return True
+        return False
+
+    def reset_dns(self):
+        """Reset DNS configuration to Google's public DNS servers."""
+        try:
+            with open('/etc/resolv.conf', 'w') as resolv_file:
+                resolv_file.write("nameserver 8.8.8.8\n")
+                resolv_file.write("nameserver 8.8.4.4\n")
+            print("DNS configuration reset successfully.")
+        except Exception as e:
+            print(f"Failed to reset DNS configuration: {e}")
 
     def activate_device(self):
         """Send activation request to the central server."""
@@ -67,6 +81,7 @@ def main():
     SERVER_URL = os.getenv("SERVER_URL", "http://localhost:5001")
 
     setup_manager = SetupManager(server_url=SERVER_URL)
+
     # Check if the device is already connected to the internet
     if not setup_manager.check_internet_connection():
         print("No internet connection detected. Starting Access Point mode...")

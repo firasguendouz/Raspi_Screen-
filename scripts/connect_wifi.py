@@ -61,8 +61,25 @@ def connect_wifi(ssid, password, timeout=30):
     except Exception as e:
         print(f"Error connecting to Wi-Fi: {e}")
         return False
+def reset_dns():
+    """Reset DNS configuration to use Google's public DNS servers."""
+    try:
+        with open('/etc/resolv.conf', 'w') as resolv_file:
+            resolv_file.write("nameserver 8.8.8.8\n")
+            resolv_file.write("nameserver 8.8.4.4\n")
+        print("DNS configuration reset to 8.8.8.8 and 8.8.4.4.")
+    except Exception as e:
+        print(f"Failed to reset DNS configuration: {e}")
 
 if __name__ == "__main__":
+    # Example usage
+    WIFI_SSID = "Vodafone-AAB4"
+    WIFI_PASSWORD = "RxymGnMT9p3LzPzP"
+    if connect_wifi(WIFI_SSID, WIFI_PASSWORD):
+        reset_dns()
+        print(f"Connected to {WIFI_SSID}")
+    else:
+        print(f"Failed to connect to {WIFI_SSID}")
     # Example usage
     WIFI_SSID = "Vodafone-AAB4"
     WIFI_PASSWORD = "RxymGnMT9p3LzPzP"
