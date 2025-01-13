@@ -28,3 +28,7 @@ qtpy>=1.11.0  # Optional, for QT GUI backend
 # Optional Dependencies
 bottle>=0.13.0  # For lightweight web server (used by pywebview)
 proxy-tools>=0.1.0  # For proxy handling (used by pywebview)
+requests
+flask
+colorama
+qrcode[pil]
