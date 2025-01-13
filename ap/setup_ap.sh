@@ -9,8 +9,6 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-
-
 # Stop interfering services
 systemctl stop wpa_supplicant
 systemctl stop hostapd
@@ -52,6 +50,9 @@ EOF
 # Enable IP forwarding
 echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/routed-ap.conf
 sysctl -p /etc/sysctl.d/routed-ap.conf
+
+# Configure firewall rules
+iptables -A INPUT -p tcp --dport 80 -j ACCEPT
 
 # Restart services
 systemctl unmask hostapd
