@@ -13,14 +13,18 @@ from server.app import app  # Flask app
 # Initialize colorama
 init(autoreset=True)
 
+
 class SetupManager:
     def __init__(self, server_url):
         self.activation_client = ActivationClient(server_url=server_url)
+        self.window = None  # To hold the pywebview window reference
 
     def log(self, message):
         """Log message to console and update UI."""
         print(Fore.CYAN + message + Style.RESET_ALL)
-        webview.window.evaluate_js(f'document.getElementById("log").innerText += "{message}\\n";')
+        if self.window:
+            # Dynamically update the log in the pywebview window
+            self.window.evaluate_js(f'document.getElementById("log").innerText += "{message}\\n";')
 
     def start_ap_mode(self):
         """Start Access Point mode."""
@@ -82,12 +86,44 @@ class SetupManager:
         """Start the Flask server."""
         app.run(host="0.0.0.0", port=80)
 
+
 def main():
-    # Load environment variables
     load_dotenv()
     SERVER_URL = os.getenv("SERVER_URL", "http://localhost:5001")
 
     setup_manager = SetupManager(server_url=SERVER_URL)
+
+    # HTML template for pywebview
+    html_template = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Raspberry Pi Setup</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                padding: 20px;
+                background-color: #f4f4f9;
+                color: #333;
+            }
+            #log {
+                white-space: pre-wrap;
+                font-size: 1.2em;
+                background: #fff;
+                padding: 10px;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                height: 400px;
+                overflow-y: auto;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Raspberry Pi Setup</h1>
+        <div id="log">Initializing...\n</div>
+    </body>
+    </html>
+    """
 
     # Start pywebview UI
     def webview_ready():
@@ -109,8 +145,11 @@ def main():
                 setup_manager.log("Failed to connect. Restarting process...")
                 main()
 
-    webview.create_window("Raspberry Pi Setup", html="<div id='log'></div>")
-    webview.start(webview_ready, debug=True)
+    # Create the pywebview window in fullscreen
+    window = webview.create_window("Raspberry Pi Setup", html=html_template, fullscreen=True)
+    setup_manager.window = window  # Store the window reference
+    webview.start(webview_ready, debug=False)
+
 
 if __name__ == "__main__":
     try:
