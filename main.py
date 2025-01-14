@@ -9,7 +9,7 @@ from server.qr_code import generate_wifi_qr
 from scripts.connect_wifi import connect_wifi
 from scripts.send_activation import ActivationClient
 from server.app import app  # Flask app
-from ui_manager import UIManager  # Separate file for PyWebView management
+from ui_manager.ui_manager import UIManager
 
 # Initialize colorama for colored console output
 init(autoreset=True)

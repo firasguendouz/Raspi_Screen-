@@ -46,6 +46,32 @@ class UIManager:
         </html>
         """
 
+    def create_ui(self, ready_callback):
+        """
+        Creates and starts the PyWebView UI.
+        
+        Args:
+            ready_callback (function): Function to execute when the UI is ready.
+        """
+        self.create_window()
+        self.start_ui(ready_callback)
+
+    def update_ui(self, message, image_path=None):
+        """
+        Updates the UI with new messages and images.
+        
+        Args:
+            message (str): The message to display
+            image_path (str, optional): Path to an image to display
+        """
+        self.log_message(message, image_path)
+
+    def close_ui(self):
+        """
+        Closes the PyWebView window.
+        """
+        self.destroy_window()
+
     def create_window(self):
         """
         Create the PyWebView window using the HTML template.
