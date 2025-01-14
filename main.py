@@ -2,45 +2,42 @@ import os
 import subprocess
 import time
 from multiprocessing import Process
+from dotenv import load_dotenv
 import webview
 from colorama import Fore, Style, init
-from dotenv import load_dotenv
 from server.qr_code import generate_wifi_qr
 from scripts.connect_wifi import connect_wifi
 from scripts.send_activation import ActivationClient
 from server.app import app  # Flask app
+from ui_manager import UIManager  # Separate file for PyWebView management
 
-# Initialize colorama
+# Initialize colorama for colored console output
 init(autoreset=True)
 
-
 class SetupManager:
+    """
+    Manages the Raspberry Pi setup process, including network configuration, 
+    Access Point (AP) mode, and device activation.
+    """
     def __init__(self, server_url):
         self.activation_client = ActivationClient(server_url=server_url)
-        self.window = None  # To hold the pywebview window reference
+        self.ui_manager = UIManager()  # Instantiate the UIManager
 
     def log(self, message, image_path=None):
-        """Log message to console and update UI."""
-        print(Fore.CYAN + message + Style.RESET_ALL)
-        if self.window:
-            # Add message to the log
-            self.window.evaluate_js(f'document.getElementById("log").innerText += "{message}\\n";')
-            # If image is provided, display it
-            if image_path:
-                self.window.evaluate_js(f'''
-                    const img = document.getElementById('qr-code');
-                    if (!img) {{
-                        const newImg = document.createElement('img');
-                        newImg.id = 'qr-code';
-                        newImg.src = 'file://{image_path}';
-                        newImg.style = 'display:block; margin:20px auto; max-width:80%;';
-                        document.body.appendChild(newImg);
-                    }}
-                ''')
+        """
+        Logs messages to the console and updates the PyWebView UI.
 
+        :param message: The message to log.
+        :param image_path: Optional image path to display in the UI.
+        """
+        print(Fore.CYAN + message + Style.RESET_ALL)
+        self.ui_manager.update_ui(message, image_path)
 
     def start_ap_mode(self):
-        """Start Access Point mode."""
+        """
+        Starts the Raspberry Pi in Access Point mode and generates a QR code 
+        for connecting to the AP.
+        """
         self.log("Starting Access Point...")
         try:
             subprocess.run(['sudo', 'bash', 'ap/setup_ap.sh'], check=True)
@@ -50,9 +47,10 @@ class SetupManager:
         except subprocess.CalledProcessError as e:
             self.log(f"Failed to start Access Point: {e}")
 
-
     def stop_ap_mode(self):
-        """Stop Access Point mode."""
+        """
+        Stops the Access Point mode.
+        """
         self.log("Stopping Access Point...")
         try:
             subprocess.run(['sudo', 'bash', 'ap/stop_ap.sh'], check=True)
@@ -61,7 +59,12 @@ class SetupManager:
             self.log(f"Failed to stop Access Point: {e}")
 
     def check_internet_connection(self):
-        """Check if the device has internet connectivity."""
+        """
+        Checks if the Raspberry Pi is connected to the internet by pinging 
+        Google's public DNS server.
+
+        :return: True if connected, False otherwise.
+        """
         self.log("Checking internet connection...")
         try:
             subprocess.run(['ping', '-c', '1', '8.8.8.8'], check=True)
@@ -72,7 +75,11 @@ class SetupManager:
             return False
 
     def activate_device(self):
-        """Send activation request to the central server."""
+        """
+        Sends an activation request to the central server.
+
+        :return: True if activation succeeds, False otherwise.
+        """
         self.log("Sending activation request...")
         success, result = self.activation_client.send_activation_request()
         if success:
@@ -83,7 +90,10 @@ class SetupManager:
             return False
 
     def handle_user_credentials(self):
-        """Handle the Flask server and process user credentials."""
+        """
+        Starts the Flask server to accept user credentials and attempts to 
+        connect to the provided Wi-Fi network.
+        """
         flask_process = Process(target=self.start_flask_server)
         flask_process.start()
 
@@ -97,55 +107,31 @@ class SetupManager:
         self.stop_ap_mode()
 
     def start_flask_server(self):
-        """Start the Flask server."""
+        """
+        Starts the Flask web server for Wi-Fi credential submission.
+        """
         app.run(host="0.0.0.0", port=80)
 
 
 def main():
+    """
+    Entry point for the Raspberry Pi setup process.
+    """
+    # Load environment variables
     load_dotenv()
     SERVER_URL = os.getenv("SERVER_URL", "http://localhost:5001")
 
     setup_manager = SetupManager(server_url=SERVER_URL)
 
-    # HTML template for pywebview
-    html_template = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Raspberry Pi Setup</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                padding: 20px;
-                background-color: #f4f4f9;
-                color: #333;
-            }
-            #log {
-                white-space: pre-wrap;
-                font-size: 1.2em;
-                background: #fff;
-                padding: 10px;
-                border: 1px solid #ccc;
-                border-radius: 5px;
-                height: 400px;
-                overflow-y: auto;
-            }
-        </style>
-    </head>
-    <body>
-        <h1>Raspberry Pi Setup</h1>
-        <div id="log">Initializing...\n</div>
-    </body>
-    </html>
-    """
-
-    # Start pywebview UI
     def webview_ready():
+        """
+        Callback for PyWebView, orchestrates the setup process.
+        """
         if setup_manager.check_internet_connection():
             setup_manager.log("Device is already connected to the internet.")
             if setup_manager.activate_device():
                 setup_manager.log("Setup completed successfully. Exiting...")
-                webview.destroy_window()
+                setup_manager.ui_manager.close_ui()
         else:
             setup_manager.log("Device not connected. Starting Access Point mode...")
             setup_manager.start_ap_mode()
@@ -159,10 +145,8 @@ def main():
                 setup_manager.log("Failed to connect. Restarting process...")
                 main()
 
-    # Create the pywebview window in fullscreen
-    window = webview.create_window("Raspberry Pi Setup", html=html_template, fullscreen=True)
-    setup_manager.window = window  # Store the window reference
-    webview.start(webview_ready, debug=False)
+    # Initialize PyWebView in the UIManager
+    setup_manager.ui_manager.create_ui(webview_ready)
 
 
 if __name__ == "__main__":
