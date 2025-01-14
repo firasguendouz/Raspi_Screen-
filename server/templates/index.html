@@ -10,6 +10,7 @@
             max-width: 600px;
             margin: 20px auto;
             padding: 20px;
+            background-color: #f9f9f9;
         }
         .form-group {
             margin-bottom: 15px;
@@ -18,7 +19,7 @@
             display: block;
             margin-bottom: 5px;
         }
-        input[type="text"], input[type="password"] {
+        select, input[type="password"] {
             width: 100%;
             padding: 8px;
             margin-bottom: 10px;
@@ -36,14 +37,41 @@
         button:hover {
             background-color: #45a049;
         }
+        #networks {
+            margin-bottom: 20px;
+        }
     </style>
+    <script>
+        async function loadNetworks() {
+            try {
+                const response = await fetch('/scan');
+                const data = await response.json();
+                const dropdown = document.getElementById('networks');
+                dropdown.innerHTML = ''; // Clear existing options
+                if (data.networks) {
+                    data.networks.forEach(network => {
+                        const option = document.createElement('option');
+                        option.value = network;
+                        option.textContent = network;
+                        dropdown.appendChild(option);
+                    });
+                } else {
+                    dropdown.innerHTML = '<option>No networks found</option>';
+                }
+            } catch (error) {
+                console.error('Error loading networks:', error);
+            }
+        }
+    </script>
 </head>
-<body>
+<body onload="loadNetworks()">
     <h1>Wi-Fi Configuration</h1>
-    <form action="/configure" method="POST">
+    <form action="/submit" method="POST">
         <div class="form-group">
             <label for="ssid">Wi-Fi Network Name (SSID):</label>
-            <input type="text" id="ssid" name="ssid" required>
+            <select id="networks" name="ssid" required>
+                <option>Loading...</option>
+            </select>
         </div>
         <div class="form-group">
             <label for="password">Password:</label>
@@ -52,4 +80,4 @@
         <button type="submit">Connect</button>
     </form>
 </body>
-</html></div>
+</html>

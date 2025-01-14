@@ -19,12 +19,25 @@ class SetupManager:
         self.activation_client = ActivationClient(server_url=server_url)
         self.window = None  # To hold the pywebview window reference
 
-    def log(self, message):
+    def log(self, message, image_path=None):
         """Log message to console and update UI."""
         print(Fore.CYAN + message + Style.RESET_ALL)
         if self.window:
-            # Dynamically update the log in the pywebview window
+            # Add message to the log
             self.window.evaluate_js(f'document.getElementById("log").innerText += "{message}\\n";')
+            # If image is provided, display it
+            if image_path:
+                self.window.evaluate_js(f'''
+                    const img = document.getElementById('qr-code');
+                    if (!img) {{
+                        const newImg = document.createElement('img');
+                        newImg.id = 'qr-code';
+                        newImg.src = 'file://{image_path}';
+                        newImg.style = 'display:block; margin:20px auto; max-width:80%;';
+                        document.body.appendChild(newImg);
+                    }}
+                ''')
+
 
     def start_ap_mode(self):
         """Start Access Point mode."""
@@ -32,10 +45,11 @@ class SetupManager:
         try:
             subprocess.run(['sudo', 'bash', 'ap/setup_ap.sh'], check=True)
             self.log("Access Point started. Generating QR code...")
-            generate_wifi_qr("RaspberryAP", "raspberry")
-            self.log("QR code generated. Ready to connect.")
+            qr_path = generate_wifi_qr("RaspberryAP", "raspberry")
+            self.log("QR code generated. Ready to connect.", image_path=qr_path)
         except subprocess.CalledProcessError as e:
             self.log(f"Failed to start Access Point: {e}")
+
 
     def stop_ap_mode(self):
         """Stop Access Point mode."""
