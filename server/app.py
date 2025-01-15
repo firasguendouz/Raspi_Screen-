@@ -191,4 +191,4 @@ app.jinja_env.globals.update(t=translation_service.get_translation)
 
 if __name__ == '__main__':
     setup_logging()
-    app.run(host='0.0.0.0', port=90)
+    app.run(host='0.0.0.0', port=80)
