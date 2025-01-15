@@ -70,7 +70,8 @@ class UIManager:
         """
         Closes the PyWebView window.
         """
-        self.destroy_window()
+        if self.window:
+            self.window.destroy()
 
     def create_window(self):
         """
@@ -107,7 +108,7 @@ class UIManager:
         Destroy the PyWebView window and exit the application gracefully.
         """
         if self.window:
-            webview.destroy_window()
+            self.window.destroy()
 
     def start_ui(self, ready_callback):
         """
@@ -117,3 +118,22 @@ class UIManager:
             ready_callback (function): Function to execute when the UI is ready.
         """
         webview.start(ready_callback, debug=False)
+
+    def display_qr_code(self, image_path):
+        """
+        Display QR code in the UI window.
+        
+        Args:
+            image_path (str): Path to QR code image
+        """
+        if self.window:
+            script = f'''
+            const content = document.getElementById('log');
+            content.innerHTML += '<p>Access Point is ready. Scan QR code to connect:</p>';
+            const img = document.createElement('img');
+            img.src = 'file://{image_path}';
+            img.id = 'wifi-qr';
+            img.style.maxWidth = '300px';
+            content.appendChild(img);
+            '''
+            self.window.evaluate_js(script)

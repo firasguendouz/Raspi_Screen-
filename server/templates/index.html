@@ -10,7 +10,6 @@
             max-width: 600px;
             margin: 20px auto;
             padding: 20px;
-            background-color: #f9f9f9;
         }
         .form-group {
             margin-bottom: 15px;
@@ -19,7 +18,7 @@
             display: block;
             margin-bottom: 5px;
         }
-        select, input[type="password"] {
+        input[type="text"], input[type="password"], select {
             width: 100%;
             padding: 8px;
             margin-bottom: 10px;
@@ -33,45 +32,33 @@
             border: none;
             border-radius: 4px;
             cursor: pointer;
+            margin-right: 10px;
         }
         button:hover {
             background-color: #45a049;
         }
-        #networks {
-            margin-bottom: 20px;
+        #scanButton {
+            background-color: #2196F3;
+        }
+        #scanButton:hover {
+            background-color: #1976D2;
+        }
+        .loading {
+            display: none;
+            margin-left: 10px;
         }
     </style>
-    <script>
-        async function loadNetworks() {
-            try {
-                const response = await fetch('/scan');
-                const data = await response.json();
-                const dropdown = document.getElementById('networks');
-                dropdown.innerHTML = ''; // Clear existing options
-                if (data.networks) {
-                    data.networks.forEach(network => {
-                        const option = document.createElement('option');
-                        option.value = network;
-                        option.textContent = network;
-                        dropdown.appendChild(option);
-                    });
-                } else {
-                    dropdown.innerHTML = '<option>No networks found</option>';
-                }
-            } catch (error) {
-                console.error('Error loading networks:', error);
-            }
-        }
-    </script>
 </head>
-<body onload="loadNetworks()">
+<body>
     <h1>Wi-Fi Configuration</h1>
-    <form action="/submit" method="POST">
+    <form id="wifiForm" action="/configure" method="POST">
         <div class="form-group">
-            <label for="ssid">Wi-Fi Network Name (SSID):</label>
-            <select id="networks" name="ssid" required>
-                <option>Loading...</option>
+            <label for="ssid">Select Wi-Fi Network:</label>
+            <select id="ssid" name="ssid" required>
+                <option value="">Choose a network...</option>
             </select>
+            <button type="button" id="scanButton">Scan Networks</button>
+            <span id="loading" class="loading">Scanning...</span>
         </div>
         <div class="form-group">
             <label for="password">Password:</label>
@@ -79,5 +66,60 @@
         </div>
         <button type="submit">Connect</button>
     </form>
+
+    <script>
+        document.getElementById('scanButton').addEventListener('click', async () => {
+            const loading = document.getElementById('loading');
+            const select = document.getElementById('ssid');
+            const scanButton = document.getElementById('scanButton');
+            
+            try {
+                loading.style.display = 'inline';
+                scanButton.disabled = true;
+                
+                const response = await fetch('/scan');
+                const data = await response.json();
+                
+                // Clear existing options
+                select.innerHTML = '<option value="">Choose a network...</option>';
+                
+                if (data.networks) {
+                    data.networks.forEach(network => {
+                        const option = document.createElement('option');
+                        option.value = network;
+                        option.textContent = network;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error scanning networks:', error);
+                alert('Failed to scan networks. Please try again.');
+            } finally {
+                loading.style.display = 'none';
+                scanButton.disabled = false;
+            }
+        });
+
+        document.getElementById('wifiForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            
+            try {
+                const response = await fetch('/configure', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                
+                alert(data.message);
+                if (data.status === 'success') {
+                    window.location.href = '/';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to submit credentials. Please try again.');
+            }
+        });
+    </script>
 </body>
 </html>

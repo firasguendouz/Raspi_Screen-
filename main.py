@@ -35,15 +35,22 @@ class SetupManager:
 
     def start_ap_mode(self):
         """
-        Starts the Raspberry Pi in Access Point mode and generates a QR code 
-        for connecting to the AP.
+        Starts the Raspberry Pi in Access Point mode and displays QR code
         """
         self.log("Starting Access Point...")
         try:
+            # Start AP
             subprocess.run(['sudo', 'bash', 'ap/setup_ap.sh'], check=True)
-            self.log("Access Point started. Generating QR code...")
+            self.log("Access Point started successfully")
+            
+            # Generate and display QR code
             qr_path = generate_wifi_qr("RaspberryAP", "raspberry")
-            self.log("QR code generated. Ready to connect.", image_path=qr_path)
+            if qr_path:
+                self.ui_manager.display_qr_code(qr_path)
+                self.log("Waiting for connection...")
+            else:
+                self.log("Failed to generate QR code")
+                
         except subprocess.CalledProcessError as e:
             self.log(f"Failed to start Access Point: {e}")
 
