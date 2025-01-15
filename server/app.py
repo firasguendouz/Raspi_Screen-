@@ -1,9 +1,5 @@
 import time
 from flask import Flask, render_template, request, jsonify, session
-from flask_login import LoginManager, login_required
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-from cryptography.fernet import Fernet
 import bleach
 import secrets
 import base64
@@ -12,25 +8,15 @@ import os
 import logging
 from logging.handlers import RotatingFileHandler
 import re
-from server.translation import TranslationService
+from translation import TranslationService
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
 
-# Setup rate limiting
-limiter = Limiter(
-    app=app,
-    key_func=get_remote_address,
-    default_limits=["100 per day", "10 per minute"]
-)
 
-# Setup login manager
-login_manager = LoginManager()
-login_manager.init_app(app)
 
-# Encryption key for passwords
-ENCRYPTION_KEY = Fernet.generate_key()
-fernet = Fernet(ENCRYPTION_KEY)
+
+
 
 def sanitize_input(text):
     """Sanitize user input"""
@@ -61,8 +47,7 @@ def index():
     return render_template('index.html')
 
 @app.route('/configure', methods=['POST'])
-@login_required
-@limiter.limit("10 per minute")
+
 def submit():
     """Handle Wi-Fi credentials submission with advanced configuration."""
     try:
@@ -72,11 +57,7 @@ def submit():
         country = sanitize_input(request.form.get('country', 'US'))
         channel = sanitize_input(request.form.get('channel', 'auto'))
         
-        if not ssid:
-            raise ValueError("SSID is required")
-            
-        # Encrypt password before storing
-        encrypted_password = fernet.encrypt(password.encode())
+        
         
         # Generate WPA supplicant configuration with encrypted password
         config = f"""
@@ -86,7 +67,7 @@ def submit():
 
         network={{
             ssid=\"{ssid}\"
-            psk=\"{base64.b64encode(encrypted_password).decode()}\"
+            psk=\"{password}\"
             key_mgmt=WPA-PSK
             scan_ssid=1
             {f"channel={channel}" if channel != 'auto' else ''}
@@ -127,8 +108,6 @@ def submit():
         })
 
 @app.route('/scan', methods=['GET'])
-@login_required
-@limiter.limit("10 per minute")
 def scan_networks():
     """Scan for available Wi-Fi networks with enhanced network information."""
     try:
@@ -172,7 +151,6 @@ def scan_networks():
         return jsonify({'status': 'error', 'message': str(e)})
 
 @app.route('/login', methods=['POST'])
-@limiter.limit("5 per minute")
 def login():
     """Handle admin login"""
     username = sanitize_input(request.form.get('username'))
