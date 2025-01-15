@@ -1,0 +1,24 @@
+{
+  "title": "Wi-Fi Setup",
+  "darkMode": "Dark Mode",
+  "steps": {
+    "scan": "1. Scan",
+    "select": "2. Select",
+    "connect": "3. Connect"
+  },
+  "network": {
+    "select": "Select Network",
+    "choose": "Choose a network...",
+    "password": "Password",
+    "minLength": "Minimum 8 characters required"
+  },
+  "buttons": {
+    "scan": "Scan",
+    "connect": "Connect",
+    "save": "Save Configuration"
+  },
+  "alerts": {
+    "scanError": "Failed to scan networks",
+    "connectError": "Connection failed"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "title": "Configuración Wi-Fi",
+  "darkMode": "Modo Oscuro",
+  "steps": {
+    "scan": "1. Buscar",
+    "select": "2. Seleccionar",
+    "connect": "3. Conectar"
+  },
+  "network": {
+    "select": "Seleccionar Red",
+    "choose": "Elegir una red...",
+    "password": "Contraseña",
+    "minLength": "Mínimo 8 caracteres requeridos"
+  },
+  "buttons": {
+    "scan": "Buscar",
+    "connect": "Conectar",
+    "save": "Guardar Configuración"
+  },
+  "alerts": {
+    "scanError": "Error al buscar redes",
+    "connectError": "Error de conexión"
+  }
+}
