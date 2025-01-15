@@ -106,50 +106,68 @@ def submit():
             'status': 'error',
             'message': f'Configuration failed: {str(e)}'
         })
-
 @app.route('/scan', methods=['GET'])
 def scan_networks():
-    """Scan for available Wi-Fi networks with enhanced network information."""
+    """Scan for available Wi-Fi networks with enhanced network information and error handling."""
     try:
-        # Full scan command to get all network information
-        cmd = "sudo iwlist wlan0 scan"
-        output = subprocess.check_output(cmd, shell=True).decode('utf-8')
-        
-        networks = []
-        current_network = {}
-        
-        for line in output.split('\n'):
-            line = line.strip()
-            
-            # Extract ESSID
-            if "ESSID:" in line:
-                current_network['ssid'] = line.split('ESSID:')[1].strip('"')
-                networks.append(current_network)
+        # Try multiple scan attempts
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Ensure interface is up
+                subprocess.run(['sudo', 'ifconfig', 'wlan0', 'up'], check=True)
+                time.sleep(1)
+                
+                # Full scan command
+                cmd = "sudo iwlist wlan0 scan"
+                output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8')
+                
+                networks = []
                 current_network = {}
                 
-            # Extract Encryption
-            elif "Encryption key:" in line:
-                current_network['encryption'] = "Yes" if "on" in line.lower() else "No"
+                for line in output.split('\n'):
+                    line = line.strip()
+                    
+                    if "Cell" in line:  # New network found
+                        if current_network and 'ssid' in current_network:
+                            networks.append(current_network)
+                        current_network = {}
+                    
+                    # Extract network information
+                    if "ESSID:" in line:
+                        ssid = line.split('ESSID:')[1].strip('"')
+                        if ssid:  # Only add non-empty SSIDs
+                            current_network['ssid'] = ssid
+                    elif "Encryption key:" in line:
+                        current_network['encryption'] = "Yes" if "on" in line.lower() else "No"
+                    elif "IE: IEEE 802.11i/WPA2" in line:
+                        current_network['security'] = "WPA2"
+                    elif "IE: WPA Version 1" in line:
+                        current_network['security'] = "WPA"
+                    elif "Signal level=" in line:
+                        match = re.search(r"Signal level=(-\d+) dBm", line)
+                        if match:
+                            current_network['signal'] = match.group(1)
                 
-            # Extract WPA/WPA2
-            elif "IE: IEEE 802.11i/WPA2" in line:
-                current_network['security'] = "WPA2"
-            elif "IE: WPA Version 1" in line:
-                current_network['security'] = "WPA"
+                # Add last network if exists
+                if current_network and 'ssid' in current_network:
+                    networks.append(current_network)
                 
-            # Extract Signal Level
-            elif "Signal level=" in line:
-                match = re.search(r"Signal level=(-\d+) dBm", line)
-                if match:
-                    current_network['signal'] = match.group(1)
-
-        app.logger.info(f"Scanned networks: {len(networks)} found")
-        return jsonify({'networks': networks})
+                if networks:
+                    app.logger.info(f"Successfully scanned {len(networks)} networks")
+                    return jsonify({'networks': networks})
+                
+            except subprocess.TimeoutExpired:
+                app.logger.warning(f"Scan attempt {attempt + 1} timed out")
+                if attempt < max_retries - 1:
+                    time.sleep(2)
+                    continue
+                
+        return jsonify({'networks': [], 'message': 'No networks found'})
         
     except Exception as e:
         app.logger.error(f"Network scan failed: {str(e)}")
-        return jsonify({'status': 'error', 'message': str(e)})
-
+        return jsonify({'status': 'error', 'message': str(e), 'networks': []})
 @app.route('/login', methods=['POST'])
 def login():
     """Handle admin login"""

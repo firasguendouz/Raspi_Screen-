@@ -101,6 +101,7 @@
                             <select class="form-select" id="ssid" name="ssid" required>
                                 <option value="">Choose a network...</option>
                             </select>
+                            <input type="text" class="form-control" id="manualSsid" placeholder="Enter SSID manually">
                             <button class="btn btn-primary" type="button" id="scanButton">
                                 <span class="spinner-border spinner-border-sm d-none" id="scanSpinner"></span>
                                 Scan
@@ -155,31 +156,34 @@
         document.getElementById('scanButton').addEventListener('click', async () => {
             const spinner = document.getElementById('scanSpinner');
             const select = document.getElementById('ssid');
+            const manualSsid = document.getElementById('manualSsid');
             
             try {
                 spinner.classList.remove('d-none');
                 const response = await fetch('/scan');
                 const data = await response.json();
                 
+                // Preserve manual entry if exists
+                const manualValue = manualSsid.value.trim();
                 select.innerHTML = '<option value="">Choose a network...</option>';
+                if (manualValue) {
+                    select.add(new Option(manualValue, manualValue));
+                }
                 
-                if (data.networks) {
+                if (data.networks && data.networks.length > 0) {
                     data.networks.forEach(network => {
-                        const option = document.createElement('option');
-                        option.value = network.ssid;
-                        option.innerHTML = `
-                            <div class="network-item">
-                                <span>${network.ssid}</span>
-                                <span class="badge bg-info">${network.security}</span>
-                                <div class="signal-strength">${network.signal}dBm</div>
-                            </div>
-                        `;
-                        select.appendChild(option);
+                        if (network.ssid !== manualValue) {  // Avoid duplicates
+                            const option = new Option(network.ssid, network.ssid);
+                            select.add(option);
+                        }
                     });
+                    showAlert('success', `Found ${data.networks.length} networks`);
+                } else {
+                    showAlert('warning', 'No networks found. You can enter SSID manually.');
                 }
             } catch (error) {
                 console.error('Error:', error);
-                showAlert('error', 'Failed to scan networks');
+                showAlert('error', 'Failed to scan networks. You can enter SSID manually.');
             } finally {
                 spinner.classList.add('d-none');
             }
@@ -234,6 +238,22 @@
         if (savedLang) {
             document.getElementById('languageSelect').value = savedLang;
         }
+
+        // Add to the existing script section
+        document.getElementById('manualSsid').addEventListener('input', (e) => {
+            const select = document.getElementById('ssid');
+            const manualValue = e.target.value.trim();
+            
+            // If manual input has value, add/select it in dropdown
+            if (manualValue) {
+                let option = select.querySelector(`option[value="${manualValue}"]`);
+                if (!option) {
+                    option = new Option(manualValue, manualValue);
+                    select.add(option);
+                }
+                select.value = manualValue;
+            }
+        });
     </script>
 </body>
 </html>
