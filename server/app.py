@@ -12,7 +12,7 @@ import os
 import logging
 from logging.handlers import RotatingFileHandler
 import re
-from translation import TranslationService
+from server.translation import TranslationService
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
@@ -191,4 +191,4 @@ app.jinja_env.globals.update(t=translation_service.get_translation)
 
 if __name__ == '__main__':
     setup_logging()
-    app.run(host='0.0.0.0', port=80)
+    app.run(host='0.0.0.0', port=90)
