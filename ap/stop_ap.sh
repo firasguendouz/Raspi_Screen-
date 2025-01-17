@@ -23,10 +23,6 @@ systemctl disable dnsmasq
 echo "Bringing down the wlan0 interface..."
 ip link set wlan0 down
 
-# Restore default DNS resolver
-echo "Restoring default DNS resolver..."
-echo "nameserver 8.8.8.8" > /etc/resolv.conf
-echo "nameserver 8.8.4.4" >> /etc/resolv.conf
 
 # Restore /etc/dhcpcd.conf
 echo "Restoring /etc/dhcpcd.conf..."
@@ -52,6 +48,10 @@ systemctl restart wpa_supplicant
 echo "Bringing up the wlan0 interface..."
 ip link set wlan0 up
 
+# Restore default DNS resolver
+echo "Restoring default DNS resolver..."
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
+echo "nameserver 8.8.4.4" >> /etc/resolv.conf
 # Check Wi-Fi interface status
 if iwconfig wlan0 | grep -q "ESSID"; then
     echo "Wi-Fi interface restored successfully. You can now connect to a Wi-Fi network."

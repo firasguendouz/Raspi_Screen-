@@ -61,15 +61,25 @@ def connect_wifi(ssid, password, timeout=30):
     except Exception as e:
         print(f"Error connecting to Wi-Fi: {e}")
         return False
+
 def reset_dns():
     """Reset DNS configuration to use Google's public DNS servers."""
     try:
+        # First remove immutable attribute if present
+        subprocess.run(['sudo', 'chattr', '-i', '/etc/resolv.conf'], check=False)
+        
+        # Write new DNS configuration
         with open('/etc/resolv.conf', 'w') as resolv_file:
             resolv_file.write("nameserver 8.8.8.8\n")
             resolv_file.write("nameserver 8.8.4.4\n")
-        print("DNS configuration reset to 8.8.8.8 and 8.8.4.4.")
+        
+        # Make file immutable to prevent overwriting
+        subprocess.run(['sudo', 'chattr', '+i', '/etc/resolv.conf'], check=False)
+        print("DNS configuration reset successfully")
+        return True
     except Exception as e:
         print(f"Failed to reset DNS configuration: {e}")
+        return False
 
 if __name__ == "__main__":
     # Example usage
@@ -80,4 +90,3 @@ if __name__ == "__main__":
         print(f"Connected to {WIFI_SSID}")
     else:
         print(f"Failed to connect to {WIFI_SSID}")
-    

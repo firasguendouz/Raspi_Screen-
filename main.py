@@ -95,14 +95,40 @@ class SetupManager:
 
     def stop_ap_mode(self):
         """
-        Stops the Access Point mode.
+        Stops the Access Point mode and ensures DNS is properly reset.
         """
         self.log("Stopping Access Point...")
         try:
             subprocess.run(['sudo', 'bash', 'ap/stop_ap.sh'], check=True)
             self.log("Access Point stopped.")
+            
+            # Add multiple DNS reset attempts
+            max_attempts = 3
+            for attempt in range(max_attempts):
+                if reset_dns():
+                    self.log("DNS reset successful")
+                    break
+                else:
+                    self.log(f"DNS reset attempt {attempt + 1} failed, retrying...")
+                    time.sleep(2)
+            
+            # Final verification
+            if not self.verify_dns_config():
+                self.log("Warning: DNS configuration may not be correct", "warning")
+                
         except subprocess.CalledProcessError as e:
             self.log(f"Failed to stop Access Point: {e}")
+
+    def verify_dns_config(self):
+        """
+        Verify DNS configuration is correct.
+        """
+        try:
+            with open('/etc/resolv.conf', 'r') as f:
+                content = f.read()
+                return '8.8.8.8' in content and '8.8.4.4' in content
+        except:
+            return False
 
     def check_internet_connection(self):
         """
@@ -207,7 +233,7 @@ def main():
                     ssid = f.readline().strip()
                     password = f.readline().strip()
                 connect_wifi(ssid, password)
-                #reset_dns()
+                reset_dns()
 
                 # Remove credentials file
                 os.remove(creds_file)       
