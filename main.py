@@ -107,40 +107,17 @@ class SetupManager:
         # Wait for credentials file
         creds_file = 'wifi_credentials.tmp'
         while not os.path.exists(creds_file):
-            time.sleep(1)
+            time.sleep(2)
             
-        # Read credentials
-        with open(creds_file) as f:
-            ssid = f.readline().strip()
-            password = f.readline().strip()
+        
         
         # Remove credentials file
-        os.remove(creds_file)
+        #os.remove(creds_file)
+        # Stop Flask server
+        flask_process.terminate()
+        flask_process.join()
+        return True
         
-        # Stop AP mode
-        self.log(f"Stopping Access Point to connect to {ssid}...")
-        self.stop_ap_mode()
-        
-        # Try to connect
-        self.log(f"Attempting to connect to {ssid}...")
-        try:
-            if connect_wifi(ssid, password):
-                self.log(f"Successfully connected to {ssid}")
-                # Stop Flask server
-                flask_process.terminate()
-                flask_process.join()
-                return True
-            else:
-                self.log(f"Failed to connect to {ssid}")
-                # Restart AP mode
-                self.start_ap_mode()
-                return False
-                
-        except Exception as e:
-            self.log(f"Error connecting to network: {e}")
-            # Restart AP mode
-            self.start_ap_mode()
-            return False
 
     def start_flask_server(self):
         """
@@ -171,7 +148,14 @@ def main():
         else:
             setup_manager.log("Device not connected. Starting Access Point mode...")
             setup_manager.start_ap_mode()
-            setup_manager.handle_user_credentials()
+            if setup_manager.handle_user_credentials() :
+                setup_manager.stop_ap_mode()
+                # Read credentials
+                creds_file = 'wifi_credentials.tmp'
+                with open(creds_file) as f:
+                    ssid = f.readline().strip()
+                    password = f.readline().strip()
+                connect_wifi(ssid, password)
             if setup_manager.check_internet_connection():
                 if setup_manager.activate_device():
                     setup_manager.log("Setup completed successfully. Exiting...")
