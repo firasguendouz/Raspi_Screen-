@@ -36,9 +36,7 @@ class SetupManager:
         self.ui_manager.update_ui(message, image_path)
 
     def start_ap_mode(self):
-        """
-        Starts the Raspberry Pi in Access Point mode and handles QR code sequence
-        """
+        """Starts the Raspberry Pi in Access Point mode and handles QR code sequence"""
         self.log("Starting Access Point...")
         try:
             # Start AP
@@ -46,10 +44,16 @@ class SetupManager:
             self.log("Access Point started successfully")
             
             # Generate and display WiFi QR code
+            self.log("Generating WiFi QR code...")
             wifi_qr = generate_wifi_qr("RaspberryAP", "raspberry", "wifi_qr.png")
+            
             if wifi_qr:
-                self.ui_manager.display_qr_code(wifi_qr, "Scan to connect to Raspberry Pi AP")
-                self.log("Waiting for connection...")
+                self.log(f"QR code generated at: {wifi_qr}")
+                self.ui_manager.display_qr_code(
+                    wifi_qr,
+                    "Scan this QR code to connect to Raspberry Pi AP"
+                )
+                self.log("Waiting for client connection...")
                 
                 # Monitor for client connection
                 while True:
@@ -63,27 +67,31 @@ class SetupManager:
                             self.log(f"Client connected! MAC: {client_mac}")
                             
                             # Generate and display URL QR code
+                            self.log("Generating setup page QR code...")
                             url_qr = generate_url_qr(
                                 "http://192.168.4.1",
                                 "web_qr.png"
                             )
+                            
                             if url_qr:
+                                self.log(f"Setup page QR code generated at: {url_qr}")
                                 self.ui_manager.display_qr_code(
                                     url_qr,
                                     "Scan to open WiFi setup page"
                                 )
                             break
                         
-                        time.sleep(2)  # Check every 2 seconds
+                        time.sleep(2)
                         
-                    except subprocess.CalledProcessError:
+                    except subprocess.CalledProcessError as e:
+                        self.log(f"Error checking connection: {e}", "error")
                         continue
                         
             else:
-                self.log("Failed to generate QR codes")
+                self.log("Failed to generate QR codes", "error")
                 
         except subprocess.CalledProcessError as e:
-            self.log(f"Failed to start Access Point: {e}")
+            self.log(f"Failed to start Access Point: {e}", "error")
 
     def stop_ap_mode(self):
         """
@@ -224,3 +232,6 @@ if __name__ == "__main__":
         print(Fore.YELLOW + "Setup interrupted by user." + Style.RESET_ALL)
     except Exception as e:
         print(Fore.RED + f"An error occurred: {e}" + Style.RESET_ALL)
+
+
+

@@ -2,6 +2,8 @@ import subprocess
 import time
 from server.qr_code import generate_wifi_qr
 import webview
+import os
+import base64
 
 class UIManager:
     """
@@ -18,29 +20,44 @@ class UIManager:
             <title>Raspberry Pi Setup</title>
             <style>
                 body {
-                    font-family: Arial, sans-serif;
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
                     padding: 20px;
                     background-color: #f4f4f9;
                     color: #333;
-                    max-width: 800px;
+                    max-width: 1000px;
                     margin: 0 auto;
+                }
+                .container {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 20px;
+                }
+                .header {
+                    text-align: center;
+                    padding: 20px;
+                    background: #fff;
+                    border-radius: 10px;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
                 }
                 #log {
                     white-space: pre-wrap;
-                    font-size: 1.2em;
+                    font-family: monospace;
+                    font-size: 1.1em;
                     background: #fff;
-                    padding: 10px;
-                    border: 1px solid #ccc;
-                    border-radius: 5px;
-                    height: 400px;
+                    padding: 15px;
+                    border: 1px solid #ddd;
+                    border-radius: 10px;
+                    height: 300px;
                     overflow-y: auto;
+                    box-shadow: inset 0 0 5px rgba(0,0,0,0.1);
                 }
                 #status {
                     margin: 20px 0;
                     padding: 15px;
-                    border-radius: 5px;
+                    border-radius: 10px;
                     text-align: center;
                     font-weight: bold;
+                    transition: all 0.3s ease;
                 }
                 .progress-container {
                     width: 100%;
@@ -52,29 +69,82 @@ class UIManager:
                 .progress-bar {
                     width: 0%;
                     height: 20px;
-                    background-color: #4CAF50;
+                    background: linear-gradient(90deg, #4CAF50, #45a049);
                     border-radius: 10px;
                     transition: width 0.3s ease;
                 }
-                img {
-                    display: block;
-                    margin: 20px auto;
-                    max-width: 300px;
-                    border-radius: 10px;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                .qr-container {
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    gap: 20px;
+                    flex-wrap: wrap;
+                    margin: 20px 0;
                 }
-                .status-pending { background-color: #fff3cd; color: #856404; }
-                .status-success { background-color: #d4edda; color: #155724; }
-                .status-error { background-color: #f8d7da; color: #721c24; }
+                .qr-code {
+                    text-align: center;
+                    background: #fff;
+                    padding: 20px;
+                    border-radius: 10px;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                    max-width: 300px;
+                    margin: 10px;
+                }
+                .qr-code img {
+                    max-width: 250px;
+                    height: auto;
+                    margin: 10px auto;
+                    border-radius: 10px;
+                }
+                .qr-code p {
+                    margin: 10px 0;
+                    font-weight: bold;
+                    color: #666;
+                }
+                .status-pending { 
+                    background-color: #fff3cd; 
+                    color: #856404;
+                    animation: pulse 2s infinite;
+                }
+                .status-success { 
+                    background-color: #d4edda; 
+                    color: #155724;
+                }
+                .status-error { 
+                    background-color: #f8d7da; 
+                    color: #721c24;
+                }
+                @keyframes pulse {
+                    0% { opacity: 1; }
+                    50% { opacity: 0.8; }
+                    100% { opacity: 1; }
+                }
+                .log-entry {
+                    padding: 5px 0;
+                    border-bottom: 1px solid #eee;
+                }
+                .log-time {
+                    color: #666;
+                    font-size: 0.9em;
+                }
+                .debug { color: #666; }
+                .info { color: #0066cc; }
+                .success { color: #28a745; }
+                .error { color: #dc3545; }
             </style>
         </head>
         <body>
-            <h1>Raspberry Pi Setup</h1>
-            <div id="status"></div>
-            <div class="progress-container" id="progress-container">
-                <div class="progress-bar" id="progress-bar"></div>
+            <div class="container">
+                <div class="header">
+                    <h1>Raspberry Pi Setup</h1>
+                    <div id="status"></div>
+                    <div class="progress-container" id="progress-container">
+                        <div class="progress-bar" id="progress-bar"></div>
+                    </div>
+                </div>
+                <div class="qr-container" id="qr-container"></div>
+                <div id="log"></div>
             </div>
-            <div id="log">Initializing...\n</div>
         </body>
         </html>
         """
@@ -191,38 +261,22 @@ class UIManager:
             '''
             self.window.evaluate_js(script)
 
-    def log_message(self, message, image_path=None):
-        """
-        Enhanced log message with automatic status updates.
-        
-        Args:
-            message (str): The message to log
-            image_path (str, optional): Path to an image to display
-        """
+    def log_message(self, message, level="info"):
+        """Enhanced logging with timestamp and styling"""
         if self.window:
-            # Update status and progress based on message content
-            if "Error" in message or "Failed" in message:
-                self.update_status(message, "error")
-            elif "Success" in message or "Complete" in message:
-                self.update_status(message, "success")
-            else:
-                self.update_status(message, "pending")
-
-            # Add message to log
+            timestamp = time.strftime("%H:%M:%S")
             safe_message = message.replace('"', '\\"').replace('\n', '\\n')
-            self.window.evaluate_js(f'document.getElementById("log").innerText += "{safe_message}\\n";')
             
-            # Handle image display
-            if image_path:
-                self.window.evaluate_js(f'''
-                    const existingImg = document.getElementById('qr-code');
-                    if (!existingImg) {{
-                        const img = document.createElement('img');
-                        img.id = 'qr-code';
-                        img.src = 'file://{image_path}';
-                        document.body.appendChild(img);
-                    }}
-                ''')
+            script = f'''
+            const log = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry {level}';
+            entry.innerHTML = `<span class="log-time">[{timestamp}]</span> {safe_message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+            '''
+            
+            self.window.evaluate_js(script)
 
     def destroy_window(self):
         """
@@ -240,40 +294,67 @@ class UIManager:
         """
         webview.start(ready_callback, debug=False)
 
+    def image_to_data_url(self, image_path):
+        """Convert image to base64 data URL"""
+        try:
+            with open(image_path, 'rb') as img_file:
+                img_data = base64.b64encode(img_file.read()).decode()
+                return f'data:image/png;base64,{img_data}'
+        except Exception as e:
+            print(f"Error converting image to data URL: {e}")
+            return None
+
     def display_qr_code(self, image_path, message=None):
-        """
-        Display QR code in the UI window with optional message.
-        
-        Args:
-            image_path (str): Path to QR code image
-            message (str, optional): Message to display above QR code
-        """
+        """Display QR code using data URL approach"""
         if self.window:
-            script = f'''
-            const content = document.getElementById('log');
-            
-            // Remove existing QR code if present
-            const existingQR = document.querySelector('#wifi-qr');
-            if (existingQR) {{
-                existingQR.remove();
-            }}
-            
-            // Add message if provided
-            if ("{message}") {{
-                content.innerHTML += '<p style="text-align: center; font-weight: bold; margin: 15px 0;">{message}</p>';
-            }}
-            
-            // Create and add QR code image
-            const img = document.createElement('img');
-            img.src = 'file://{image_path}';
-            img.id = 'wifi-qr';
-            img.style.maxWidth = '300px';
-            img.style.margin = '0 auto';
-            img.style.display = 'block';
-            content.appendChild(img);
-            content.scrollTop = content.scrollHeight;
-            '''
-            self.window.evaluate_js(script)
+            try:
+                # Convert image to data URL
+                data_url = self.image_to_data_url(image_path)
+                if not data_url:
+                    self.log_message("Failed to convert image to data URL", "error")
+                    return
+
+                script = f'''
+                try {{
+                    const container = document.getElementById('qr-container');
+                    container.innerHTML = ''; // Clear existing
+                    
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'qr-code';
+                    
+                    if ("{message}") {{
+                        const msg = document.createElement('p');
+                        msg.textContent = "{message}";
+                        wrapper.appendChild(msg);
+                    }}
+                    
+                    const img = document.createElement('img');
+                    img.onload = () => {{
+                        console.log('QR code loaded successfully');
+                        this.log_message('QR code displayed successfully', 'success');
+                    }};
+                    
+                    img.onerror = (e) => {{
+                        console.error('Failed to load QR:', e);
+                        this.log_message('Failed to load QR code', 'error');
+                    }};
+
+                    img.src = "{data_url}";
+                    img.alt = "QR Code";
+                    
+                    wrapper.appendChild(img);
+                    container.appendChild(wrapper);
+                }} catch(error) {{
+                    console.error('Error:', error);
+                    this.log_message('Error displaying QR code: ' + error, 'error');
+                }}
+                '''
+                
+                self.window.evaluate_js(script)
+                self.log_message(f"Displaying QR code from: {image_path}", "info")
+                
+            except Exception as e:
+                self.log_message(f"Error in display_qr_code: {e}", "error")
 
     def start_ap_mode(self):
         """Starts the Raspberry Pi in Access Point mode with progress updates."""
