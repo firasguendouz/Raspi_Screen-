@@ -5,8 +5,10 @@ from multiprocessing import Process
 from dotenv import load_dotenv
 import webview
 from colorama import Fore, Style, init
-from server.qr_code import generate_wifi_qr
+from server.qr_code import generate_url_qr, generate_wifi_qr
 from scripts.connect_wifi import connect_wifi
+from scripts.connect_wifi import reset_dns
+
 from scripts.send_activation import ActivationClient
 from server.app import app  # Flask app
 from ui_manager.ui_manager import UIManager
@@ -35,7 +37,7 @@ class SetupManager:
 
     def start_ap_mode(self):
         """
-        Starts the Raspberry Pi in Access Point mode and displays QR code
+        Starts the Raspberry Pi in Access Point mode and handles QR code sequence
         """
         self.log("Starting Access Point...")
         try:
@@ -43,13 +45,42 @@ class SetupManager:
             subprocess.run(['sudo', 'bash', 'ap/setup_ap.sh'], check=True)
             self.log("Access Point started successfully")
             
-            # Generate and display QR code
-            qr_path = generate_wifi_qr("RaspberryAP", "raspberry")
-            if qr_path:
-                self.ui_manager.display_qr_code(qr_path)
+            # Generate and display WiFi QR code
+            wifi_qr = generate_wifi_qr("RaspberryAP", "raspberry", "wifi_qr.png")
+            if wifi_qr:
+                self.ui_manager.display_qr_code(wifi_qr, "Scan to connect to Raspberry Pi AP")
                 self.log("Waiting for connection...")
+                
+                # Monitor for client connection
+                while True:
+                    try:
+                        connected_device = subprocess.check_output(
+                            ['iw', 'dev', 'wlan0', 'station', 'dump']
+                        ).decode()
+                        
+                        if connected_device:
+                            client_mac = connected_device.split('\n')[0].split()[1]
+                            self.log(f"Client connected! MAC: {client_mac}")
+                            
+                            # Generate and display URL QR code
+                            url_qr = generate_url_qr(
+                                "http://192.168.4.1",
+                                "web_qr.png"
+                            )
+                            if url_qr:
+                                self.ui_manager.display_qr_code(
+                                    url_qr,
+                                    "Scan to open WiFi setup page"
+                                )
+                            break
+                        
+                        time.sleep(2)  # Check every 2 seconds
+                        
+                    except subprocess.CalledProcessError:
+                        continue
+                        
             else:
-                self.log("Failed to generate QR code")
+                self.log("Failed to generate QR codes")
                 
         except subprocess.CalledProcessError as e:
             self.log(f"Failed to start Access Point: {e}")
@@ -148,6 +179,18 @@ def main():
         else:
             setup_manager.log("Device not connected. Starting Access Point mode...")
             setup_manager.start_ap_mode()
+            # Log client connection and display redirect message
+            connected_device = subprocess.check_output(['iw', 'dev', 'wlan0', 'station', 'dump']).decode()
+            if connected_device:
+                setup_manager.log("Client device connected!")
+                client_mac = connected_device.split('\n')[0].split()[1]
+                setup_manager.log(f"Client MAC: {client_mac}")
+                
+                # Generate QR code for flask web interface
+                redirect_url = "http://192.168.4.1"
+                web_qr_path = generate_wifi_qr(redirect_url, "", output_file="web_qr.png")
+                if web_qr_path:
+                    setup_manager.log("Scan QR code to access setup page:", web_qr_path)
             if setup_manager.handle_user_credentials() :
                 setup_manager.stop_ap_mode()
                 # Read credentials
@@ -156,7 +199,12 @@ def main():
                     ssid = f.readline().strip()
                     password = f.readline().strip()
                 connect_wifi(ssid, password)
+                #reset_dns()
+
+                # Remove credentials file
+                os.remove(creds_file)       
             if setup_manager.check_internet_connection():
+
                 if setup_manager.activate_device():
                     setup_manager.log("Setup completed successfully. Exiting...")
                 else:
