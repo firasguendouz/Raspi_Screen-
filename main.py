@@ -103,20 +103,44 @@ class SetupManager:
         """
         flask_process = Process(target=self.start_flask_server)
         flask_process.start()
-
-        self.log("Waiting for user to submit credentials...")
         
-        # Check connection periodically
-        check_interval = 5  # seconds
-        while not self.check_internet_connection():
-            time.sleep(check_interval)
-
-        self.log("Connected to network successfully!")
-        self.log("Stopping Flask server...")
+        # Wait for credentials file
+        creds_file = 'wifi_credentials.tmp'
+        while not os.path.exists(creds_file):
+            time.sleep(1)
+            
+        # Read credentials
+        with open(creds_file) as f:
+            ssid = f.readline().strip()
+            password = f.readline().strip()
         
-        # Clean up
-        flask_process.terminate()
-        flask_process.join()
+        # Remove credentials file
+        os.remove(creds_file)
+        
+        # Stop AP mode
+        self.log(f"Stopping Access Point to connect to {ssid}...")
+        self.stop_ap_mode()
+        
+        # Try to connect
+        self.log(f"Attempting to connect to {ssid}...")
+        try:
+            if connect_wifi(ssid, password):
+                self.log(f"Successfully connected to {ssid}")
+                # Stop Flask server
+                flask_process.terminate()
+                flask_process.join()
+                return True
+            else:
+                self.log(f"Failed to connect to {ssid}")
+                # Restart AP mode
+                self.start_ap_mode()
+                return False
+                
+        except Exception as e:
+            self.log(f"Error connecting to network: {e}")
+            # Restart AP mode
+            self.start_ap_mode()
+            return False
 
     def start_flask_server(self):
         """

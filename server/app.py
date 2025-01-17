@@ -41,58 +41,27 @@ def index():
 
 @app.route('/configure', methods=['POST'])
 def submit():
-    """Handle Wi-Fi credentials submission with connection handling."""
+    """Handle Wi-Fi credentials submission."""
     try:
         # Sanitize inputs
         ssid = sanitize_input(request.form.get('ssid', ''))
         password = request.form.get('password', '')
         
-        app.logger.info(f"Attempting to connect to network: {ssid}")
-        
-        # First stop AP mode
-        try:
-            subprocess.run(['sudo', 'bash', 'ap/stop_ap.sh'], check=True)
-            app.logger.info("Access Point stopped successfully")
-        except subprocess.CalledProcessError as e:
-            app.logger.error(f"Failed to stop Access Point: {e}")
-            return jsonify({
-                'status': 'error',
-                'message': 'Failed to stop Access Point mode'
-            })
-
-        # Import connect_wifi function
-        from scripts.connect_wifi import connect_wifi
-        
-        # Attempt connection with timeout
-        if connect_wifi(ssid, password, timeout=30):
-            app.logger.info(f"Successfully connected to {ssid}")
-            return jsonify({
-                'status': 'success',
-                'message': 'Connected successfully'
-            })
-        else:
-            # If connection fails, restart AP mode
-            try:
-                subprocess.run(['sudo', 'bash', 'ap/setup_ap.sh'], check=True)
-            except subprocess.CalledProcessError:
-                pass  # Log but don't affect response
-                
-            app.logger.error(f"Failed to connect to {ssid}")
-            return jsonify({
-                'status': 'error',
-                'message': 'Failed to connect to network. Please check credentials and try again.'
-            })
+        # Write credentials to a temporary file for main process to read
+        creds_file = 'wifi_credentials.tmp'
+        with open(creds_file, 'w') as f:
+            f.write(f"{ssid}\n{password}")
+            
+        return jsonify({
+            'status': 'success',
+            'message': 'Credentials received'
+        })
             
     except Exception as e:
-        app.logger.error(f"Configuration failed: {str(e)}")
-        # Ensure AP is restarted on error
-        try:
-            subprocess.run(['sudo', 'bash', 'ap/setup_ap.sh'], check=True)
-        except:
-            pass
+        app.logger.error(f"Failed to save credentials: {str(e)}")
         return jsonify({
             'status': 'error',
-            'message': f'Configuration failed: {str(e)}'
+            'message': f'Failed to save credentials: {str(e)}'
         })
 
 @app.route('/scan', methods=['GET'])
