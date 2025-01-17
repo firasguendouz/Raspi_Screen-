@@ -105,13 +105,18 @@ class SetupManager:
         flask_process.start()
 
         self.log("Waiting for user to submit credentials...")
+        
+        # Check connection periodically
+        check_interval = 5  # seconds
         while not self.check_internet_connection():
-            time.sleep(10)
+            time.sleep(check_interval)
 
-        self.log("Stopping Flask server and Access Point...")
+        self.log("Connected to network successfully!")
+        self.log("Stopping Flask server...")
+        
+        # Clean up
         flask_process.terminate()
         flask_process.join()
-        self.stop_ap_mode()
 
     def start_flask_server(self):
         """

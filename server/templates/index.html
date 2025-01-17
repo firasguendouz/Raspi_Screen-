@@ -193,8 +193,11 @@
             e.preventDefault();
             const spinner = document.getElementById('connectSpinner');
             const overlay = document.getElementById('loading-overlay');
+            const submitButton = e.target.querySelector('button[type="submit"]');
             
             try {
+                // Disable form while connecting
+                submitButton.disabled = true;
                 spinner.classList.remove('d-none');
                 overlay.style.display = 'flex';
                 
@@ -206,16 +209,20 @@
                 
                 const data = await response.json();
                 if (data.status === 'success') {
-                    window.location.href = '/success';
+                    showAlert('success', 'Connected successfully! Redirecting...');
+                    setTimeout(() => {
+                        window.location.href = '/success';
+                    }, 2000);
                 } else {
                     showAlert('error', data.message || 'Connection failed');
                 }
             } catch (error) {
                 console.error('Error:', error);
-                showAlert('error', 'Connection failed');
+                showAlert('error', 'Connection failed. Please try again.');
             } finally {
                 spinner.classList.add('d-none');
                 overlay.style.display = 'none';
+                submitButton.disabled = false;
             }
         });
 

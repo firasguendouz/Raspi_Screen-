@@ -41,63 +41,60 @@ def index():
 
 @app.route('/configure', methods=['POST'])
 def submit():
-    """Handle Wi-Fi credentials submission with advanced configuration."""
+    """Handle Wi-Fi credentials submission with connection handling."""
     try:
         # Sanitize inputs
         ssid = sanitize_input(request.form.get('ssid', ''))
         password = request.form.get('password', '')
-        country = sanitize_input(request.form.get('country', 'US'))
-        channel = sanitize_input(request.form.get('channel', 'auto'))
         
+        app.logger.info(f"Attempting to connect to network: {ssid}")
         
-        
-        # Generate WPA supplicant configuration with encrypted password
-        config = f"""
-        ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-        update_config=1
-        country={country}
+        # First stop AP mode
+        try:
+            subprocess.run(['sudo', 'bash', 'ap/stop_ap.sh'], check=True)
+            app.logger.info("Access Point stopped successfully")
+        except subprocess.CalledProcessError as e:
+            app.logger.error(f"Failed to stop Access Point: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to stop Access Point mode'
+            })
 
-        network={{
-            ssid=\"{ssid}\"
-            psk=\"{password}\"
-            key_mgmt=WPA-PSK
-            scan_ssid=1
-            {f"channel={channel}" if channel != 'auto' else ''}
-        }}
-        """
+        # Import connect_wifi function
+        from scripts.connect_wifi import connect_wifi
         
-        # Write configuration
-        with open('/etc/wpa_supplicant/wpa_supplicant.conf', 'w') as f:
-            f.write(config)
-            
-        # Restart networking services
-        subprocess.run(['sudo', 'systemctl', 'restart', 'wpa_supplicant'], check=True)
-        
-        # Monitor connection status
-        max_retries = 3
-        for attempt in range(max_retries):
+        # Attempt connection with timeout
+        if connect_wifi(ssid, password, timeout=30):
+            app.logger.info(f"Successfully connected to {ssid}")
+            return jsonify({
+                'status': 'success',
+                'message': 'Connected successfully'
+            })
+        else:
+            # If connection fails, restart AP mode
             try:
-                # Check if connected
-                check_cmd = "iwconfig wlan0 | grep 'ESSID:'"
-                output = subprocess.check_output(check_cmd, shell=True).decode()
-                if ssid in output:
-                    app.logger.info(f"Successfully connected to {ssid}")
-                    return jsonify({
-                        'status': 'success',
-                        'message': 'Connected successfully'
-                    })
-            except:
-                app.logger.warning(f"Connection attempt {attempt + 1} failed")
-                time.sleep(2)  # Wait before retry
+                subprocess.run(['sudo', 'bash', 'ap/setup_ap.sh'], check=True)
+            except subprocess.CalledProcessError:
+                pass  # Log but don't affect response
                 
-        raise Exception("Failed to establish connection after multiple attempts")
+            app.logger.error(f"Failed to connect to {ssid}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to connect to network. Please check credentials and try again.'
+            })
             
     except Exception as e:
         app.logger.error(f"Configuration failed: {str(e)}")
+        # Ensure AP is restarted on error
+        try:
+            subprocess.run(['sudo', 'bash', 'ap/setup_ap.sh'], check=True)
+        except:
+            pass
         return jsonify({
             'status': 'error',
             'message': f'Configuration failed: {str(e)}'
         })
+
 @app.route('/scan', methods=['GET'])
 def scan_networks():
     """Scan for available Wi-Fi networks with enhanced network information and error handling."""
