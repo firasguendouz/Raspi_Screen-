@@ -240,22 +240,38 @@ class UIManager:
         """
         webview.start(ready_callback, debug=False)
 
-    def display_qr_code(self, image_path):
+    def display_qr_code(self, image_path, message=None):
         """
-        Display QR code in the UI window.
+        Display QR code in the UI window with optional message.
         
         Args:
             image_path (str): Path to QR code image
+            message (str, optional): Message to display above QR code
         """
         if self.window:
             script = f'''
             const content = document.getElementById('log');
-            content.innerHTML += '<p>Access Point is ready. Scan QR code to connect:</p>';
+            
+            // Remove existing QR code if present
+            const existingQR = document.querySelector('#wifi-qr');
+            if (existingQR) {{
+                existingQR.remove();
+            }}
+            
+            // Add message if provided
+            if ("{message}") {{
+                content.innerHTML += '<p style="text-align: center; font-weight: bold; margin: 15px 0;">{message}</p>';
+            }}
+            
+            // Create and add QR code image
             const img = document.createElement('img');
             img.src = 'file://{image_path}';
             img.id = 'wifi-qr';
             img.style.maxWidth = '300px';
+            img.style.margin = '0 auto';
+            img.style.display = 'block';
             content.appendChild(img);
+            content.scrollTop = content.scrollHeight;
             '''
             self.window.evaluate_js(script)
 

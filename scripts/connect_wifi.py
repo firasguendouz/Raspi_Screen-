@@ -76,14 +76,8 @@ if __name__ == "__main__":
     WIFI_SSID = "Vodafone-AAB4"
     WIFI_PASSWORD = "RxymGnMT9p3LzPzP"
     if connect_wifi(WIFI_SSID, WIFI_PASSWORD):
-        reset_dns()
+        #reset_dns()
         print(f"Connected to {WIFI_SSID}")
     else:
         print(f"Failed to connect to {WIFI_SSID}")
-    # Example usage
-    WIFI_SSID = "Vodafone-AAB4"
-    WIFI_PASSWORD = "RxymGnMT9p3LzPzP"
-    if connect_wifi(WIFI_SSID, WIFI_PASSWORD):
-        print("Wi-Fi setup complete.")
-    else:
-        print("Wi-Fi setup failed.")
+    
