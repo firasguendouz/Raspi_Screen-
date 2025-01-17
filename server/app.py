@@ -33,13 +33,7 @@ def setup_logging():
     app.logger.addHandler(handler)
     app.logger.setLevel(logging.INFO)
 
-@app.before_request
-def csrf_protect():
-    """Protect against CSRF attacks"""
-    if request.method == "POST":
-        token = session.get('_csrf_token')
-        if not token or token != request.form.get('_csrf_token'):
-            return jsonify({'status': 'error', 'message': 'CSRF validation failed'}), 403
+
 
 @app.route('/')
 def index():
@@ -168,18 +162,6 @@ def scan_networks():
     except Exception as e:
         app.logger.error(f"Network scan failed: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e), 'networks': []})
-@app.route('/login', methods=['POST'])
-def login():
-    """Handle admin login"""
-    username = sanitize_input(request.form.get('username'))
-    password = request.form.get('password')
-    
-    # Add your authentication logic here
-    if username == "admin" and password == "secure_password":
-        session['logged_in'] = True
-        session['_csrf_token'] = secrets.token_hex(32)
-        return jsonify({'status': 'success'})
-    return jsonify({'status': 'error'}), 401
 
 # Add to existing Flask app
 translation_service = TranslationService()
