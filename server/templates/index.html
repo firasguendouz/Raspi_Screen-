@@ -93,7 +93,6 @@
         <div class="card">
             <div class="card-body">
                 <form id="wifiForm" action="/configure" method="POST">
-                    <input type="hidden" name="_csrf_token" value="{{ session._csrf_token }}">
                     
                     <div class="mb-3">
                         <label class="form-label">Select Network</label>
@@ -199,16 +198,17 @@
                 spinner.classList.remove('d-none');
                 overlay.style.display = 'flex';
                 
+                const formData = new FormData(e.target);
                 const response = await fetch('/configure', {
                     method: 'POST',
-                    body: new FormData(e.target)
+                    body: formData
                 });
                 
                 const data = await response.json();
                 if (data.status === 'success') {
                     window.location.href = '/success';
                 } else {
-                    showAlert('error', data.message);
+                    showAlert('error', data.message || 'Connection failed');
                 }
             } catch (error) {
                 console.error('Error:', error);

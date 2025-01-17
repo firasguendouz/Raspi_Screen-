@@ -11,7 +11,6 @@ import re
 from translation import TranslationService
 
 app = Flask(__name__)
-app.secret_key = secrets.token_hex(32)
 
 
 
@@ -41,7 +40,6 @@ def index():
     return render_template('index.html')
 
 @app.route('/configure', methods=['POST'])
-
 def submit():
     """Handle Wi-Fi credentials submission with advanced configuration."""
     try:
