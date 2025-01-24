@@ -1,6 +1,6 @@
 # Project TODO List
 
-## �� High Priority
+## 🔥 High Priority
 
 ### WiFi Connection Improvements
 - [ ] Add WiFi signal strength indicator during network scanning
@@ -13,6 +13,9 @@
 - [ ] Add network connection timeout handling
 - [ ] Create connection diagnostics tool
 - [ ] Add support for hidden SSIDs
+- [ ] Add support for RADIUS authentication
+- [ ] Implement VLAN tagging support
+- [ ] Add enterprise WiFi features
 
 ### Security Enhancements
 - [ ] Implement token-based authentication for API endpoints
@@ -20,6 +23,10 @@
 - [ ] Secure storage for Wi-Fi credentials
 - [ ] Implement rate limiting for API endpoints
 - [ ] Add input validation middleware
+- [ ] Implement HTTPS with Let's Encrypt certificates
+- [ ] Add JWT authentication support
+- [ ] Implement OAuth2 integration
+- [ ] Add self-signed certificate generation
 
 ### Network Management
 - [ ] Implement automatic network reconnection
@@ -44,8 +51,12 @@ graph TD
 - [ ] Implement dark mode toggle persistence
 - [ ] Add loading indicators for all operations
 - [ ] Enhance mobile responsiveness
+- [ ] Add visual signal strength indicators
+- [ ] Implement responsive Flask UI design
+- [ ] Add PWA capabilities to web interface
+- [ ] Enhance setup wizard UX
 
-## 🔄 System Stability
+## �� System Stability
 
 ### Connection Reliability
 - [ ] Implement connection state machine for better flow control
@@ -107,6 +118,20 @@ graph LR
 - [ ] Add performance benchmarking
 - [ ] Create automated UI testing
 - [ ] Add network simulation tests
+- [ ] Implement GitHub Actions workflows
+- [ ] Add Jenkins pipeline support
+- [ ] Integrate ShellCheck testing
+- [ ] Add Bats test framework
+- [ ] Implement automated quality checks
+
+### Package Management
+- [ ] Create Debian (.deb) package
+- [ ] Create RPM package
+- [ ] Build macOS installer
+- [ ] Build Windows installer
+- [ ] Add cross-platform build scripts
+- [ ] Implement automated dependency resolution
+- [ ] Create installation verification tests
 
 ### Documentation
 - [ ] Create API versioning documentation
@@ -125,6 +150,9 @@ graph LR
   - [ ] Japanese
 - [ ] Implement RTL language support
 - [ ] Add language auto-detection
+- [ ] Localize Flask web interface
+- [ ] Localize PyWebView UI components
+- [ ] Add multi-language documentation
 
 ## 📊 Monitoring & Analytics
 
@@ -134,6 +162,9 @@ graph LR
 - [ ] Create system health dashboard
 - [ ] Add network quality metrics
 - [ ] Implement error tracking
+- [ ] Create centralized device management dashboard
+- [ ] Add real-time status monitoring
+- [ ] Implement device fleet management
 
 ### Reporting
 ```mermaid
