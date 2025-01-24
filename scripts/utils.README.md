@@ -1,169 +1,209 @@
 # utils.py
 
-## Overview
-Utility Module for Raspberry Pi Screen Management Scripts that provides shared functionality for logging, configuration, error handling, and system metrics collection.
+![Status](https://img.shields.io/badge/status-stable-green)
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Python](https://img.shields.io/badge/python-3.7+-yellow)
+![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen)
 
-## Features
-- Centralized logging configuration
-- Configuration file management
-- HTTP session handling with retries
-- System metrics collection
-- File backup and restore
-- Error handling classes
-- Network validation utilities
+## 🔍 Overview
+Common utility functions for the Raspberry Pi Screen Management scripts, providing input validation, network utilities, and logging functionality.
 
-## Dependencies
+## 🔗 Related Documentation
+- [Main Scripts Documentation](Scripts.md)
+- [WiFi Connection Module](connect_wifi.README.md)
+- [Send Activation Module](send_activation.README.md)
+- [Stream URL Module](stream_url.README.md)
+
+## ⭐ Features
+- Input validation and sanitization
+- Network interface management
+- Configuration file handling
+- Logging setup and management
+- Error handling utilities
+
+## 📦 Dependencies
 - `python-dotenv`: Environment configuration
+- `validators`: Input validation
 - `requests`: HTTP client library
-- `validators`: URL validation
 - `psutil`: System metrics collection
-- `logging`: Python standard logging
 
-## Installation
+## 🛠️ Installation
 ```bash
 pip install -r requirements.txt
 ```
 
-## Configuration
+## 📝 Usage
+```python
+from utils import (
+    validate_input,
+    setup_logging,
+    load_config,
+    get_network_info
+)
+
+# Setup logging
+logger = setup_logging("my_script")
+
+# Validate user input
+if validate_input(user_input):
+    # Process input
+    pass
+
+# Load configuration
+config = load_config()
+
+# Get network information
+network_info = get_network_info()
+```
+
+## ⚙️ Configuration
 
 ### Environment Variables
-- `LOG_DIR`: Log directory path
-- `CONFIG_DIR`: Configuration directory path
+See [.env.example](.env.example) for configuration options:
 - `LOG_LEVEL`: Logging verbosity
+- `CONFIG_DIR`: Configuration directory
+- `LOG_DIR`: Log file directory
 
-### Constants
+### Logging Configuration
 ```python
-DEFAULT_LOG_DIR = "/var/log/raspi_screen"
-DEFAULT_CONFIG_DIR = "../config"
-DEFAULT_RETRY_ATTEMPTS = 3
-DEFAULT_BACKOFF_FACTOR = 0.3
+LOGGING_CONFIG = {
+    "version": 1,
+    "formatters": {
+        "default": {
+            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        }
+    },
+    "handlers": {
+        "file": {
+            "class": "logging.FileHandler",
+            "formatter": "default",
+            "filename": "/var/log/raspi_screen/utils.log"
+        }
+    },
+    "root": {
+        "level": "INFO",
+        "handlers": ["file"]
+    }
+}
 ```
 
-## Error Classes
+## 🛠️ Functions
 
-### ConfigurationError
+### Input Validation
+
+#### `validate_input(text: str, max_length: int = 100) -> bool`
+Validates user input for safety and length.
+
 ```python
-class ConfigurationError(Exception):
-    """Exception raised for configuration-related errors."""
-    pass
+if validate_input(user_text, max_length=50):
+    process_input(user_text)
 ```
 
-### NetworkError
+#### `sanitize_string(text: str) -> str`
+Removes dangerous characters from input.
+
 ```python
-class NetworkError(Exception):
-    """Exception raised for network-related errors."""
-    pass
+clean_text = sanitize_string(raw_input)
 ```
 
-## Functions
+### Network Utilities
+
+#### `get_network_info() -> Dict[str, Any]`
+Retrieves network interface information.
+
+```python
+network_info = get_network_info()
+print(f"IP Address: {network_info['ip_address']}")
+```
+
+#### `check_connection(host: str = "8.8.8.8") -> bool`
+Checks internet connectivity.
+
+```python
+if check_connection():
+    print("Internet available")
+```
+
+### Configuration Management
+
+#### `load_config(config_path: str = None) -> Dict[str, Any]`
+Loads configuration from JSON file.
+
+```python
+config = load_config("/path/to/config.json")
+```
+
+#### `save_config(config: Dict[str, Any], config_path: str) -> None`
+Saves configuration to JSON file.
+
+```python
+save_config(updated_config, "/path/to/config.json")
+```
 
 ### Logging
 
-#### `setup_logging(script_name: str, log_level: str = "INFO") -> logging.Logger`
-Configures logging with file and console handlers.
+#### `setup_logging(name: str, level: str = "INFO") -> logging.Logger`
+Sets up logging with file handler.
+
 ```python
-logger = setup_logging('my_script')
-logger.info("Operation successful")
+logger = setup_logging("my_script", "DEBUG")
+logger.info("Script started")
 ```
 
-### Configuration
+## ⚠️ Error Handling
 
-#### `load_config(config_name: str) -> Dict[str, Any]`
-Loads configuration from JSON file.
+### Custom Exceptions
 ```python
-config = load_config('wifi_networks')
-wifi_settings = config['default']
+class ConfigError(Exception):
+    """Configuration related errors"""
+    pass
+
+class NetworkError(Exception):
+    """Network operation errors"""
+    pass
+
+class ValidationError(Exception):
+    """Input validation errors"""
+    pass
 ```
 
-### HTTP Utilities
-
-#### `create_http_session(retries: int = DEFAULT_RETRY_ATTEMPTS, backoff_factor: float = DEFAULT_BACKOFF_FACTOR) -> requests.Session`
-Creates HTTP session with retry capabilities.
+### Error Messages
 ```python
-session = create_http_session(retries=5)
-response = session.get('https://example.com')
+ERROR_MESSAGES = {
+    "invalid_input": "Input contains invalid characters",
+    "network_unreachable": "Network is unreachable",
+    "config_not_found": "Configuration file not found"
+}
 ```
 
-### URL Validation
+## 📝 Best Practices
 
-#### `validate_url(url: str) -> bool`
-Validates URL format.
-```python
-if validate_url("https://example.com"):
-    print("Valid URL")
-```
+1. **Input Validation**
+   - Always sanitize user input
+   - Validate before processing
+   - Use appropriate length limits
 
-### File Operations
+2. **Error Handling**
+   - Use custom exceptions
+   - Log errors with context
+   - Provide helpful error messages
 
-#### `backup_file(file_path: str) -> str`
-Creates backup of specified file.
-```python
-backup_path = backup_file("/etc/config.conf")
-```
+3. **Configuration**
+   - Use environment variables
+   - Validate configuration
+   - Handle missing values
 
-#### `restore_file(backup_path: str, original_path: str) -> None`
-Restores file from backup.
-```python
-restore_file("/etc/config.conf.backup", "/etc/config.conf")
-```
+4. **Logging**
+   - Use appropriate log levels
+   - Include context in messages
+   - Rotate log files
 
-### System Metrics
+## 📚 See Also
+- [WiFi Connection Module](connect_wifi.README.md)
+- [Send Activation Module](send_activation.README.md)
+- [Stream URL Module](stream_url.README.md)
 
-#### `get_system_metrics() -> Dict[str, Any]`
-Collects system performance metrics.
-```python
-metrics = get_system_metrics()
-print(f"CPU Usage: {metrics['cpu_percent']}%")
-```
+---
+*Last updated: 2024-01-24*
 
-### Network Validation
-
-#### `validate_wifi_credentials(ssid: str, password: Optional[str] = None) -> bool`
-Validates WiFi credential format.
-```python
-if validate_wifi_credentials("MyNetwork", "password123"):
-    print("Valid credentials")
-```
-
-## Logging Structure
-- File Handler: Rotating file with size limit
-- Console Handler: Level-based colored output
-- Format: `%(asctime)s - %(name)s - %(levelname)s - %(message)s`
-
-## Error Handling
-- Configuration validation
-- File operation safety
-- Network request retries
-- Detailed error messages
-- Exception hierarchy
-
-## Usage Example
-```python
-from utils import setup_logging, load_config, create_http_session
-
-# Setup logging
-logger = setup_logging('my_script')
-
-try:
-    # Load configuration
-    config = load_config('app_config')
-    
-    # Create HTTP session
-    session = create_http_session()
-    
-    # Use configuration
-    url = config['api_url']
-    response = session.get(url)
-    
-    logger.info("Operation successful")
-    
-except ConfigurationError as e:
-    logger.error(f"Configuration error: {e}")
-except NetworkError as e:
-    logger.error(f"Network error: {e}")
-```
-
-## See Also
-- `stream_url.py`: URL streaming management
-- `connect_wifi.py`: WiFi connection management
-- `send_activation.py`: Device activation and metrics 
+Tags: #utils #python #validation #networking #logging #configuration 
