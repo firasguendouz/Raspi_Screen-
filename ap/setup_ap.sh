@@ -3,6 +3,12 @@
 # Enhanced Script to initialize and stabilize Access Point mode
 # Must be run with sudo privileges
 
+# Test mode flag
+TEST_MODE=0
+if [[ "$1" == "--test-mode" ]]; then
+    TEST_MODE=1
+fi
+
 # Check if script is run as root
 if [[ $EUID -ne 0 ]]; then
     echo "[ERROR] This script must be run as root (sudo). Exiting."
@@ -16,9 +22,11 @@ log_message() {
 
 # Stop interfering services
 log_message "Stopping interfering services..."
-systemctl stop wpa_supplicant
-systemctl stop hostapd
-systemctl stop dnsmasq
+if [[ $TEST_MODE -eq 0 ]]; then
+    systemctl stop wpa_supplicant
+    systemctl stop hostapd
+    systemctl stop dnsmasq
+fi
 
 # Copy configuration files
 log_message "Copying configuration files..."
@@ -42,7 +50,9 @@ fi
 # Enable IP forwarding
 log_message "Enabling IP forwarding..."
 echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/routed-ap.conf
-sysctl -p /etc/sysctl.d/routed-ap.conf
+if [[ $TEST_MODE -eq 0 ]]; then
+    sysctl -p /etc/sysctl.d/routed-ap.conf
+fi
 
 if [[ $? -ne 0 ]]; then
     echo "[ERROR] Failed to enable IP forwarding. Exiting."
@@ -51,7 +61,9 @@ fi
 
 # Configure firewall rules
 log_message "Configuring firewall rules..."
-iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+if [[ $TEST_MODE -eq 0 ]]; then
+    iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+fi
 
 if [[ $? -ne 0 ]]; then
     echo "[ERROR] Failed to configure firewall rules. Exiting."
@@ -60,12 +72,14 @@ fi
 
 # Restart services
 log_message "Restarting services..."
-systemctl unmask hostapd
-systemctl enable hostapd
-systemctl enable dnsmasq
-systemctl restart dhcpcd
-systemctl restart hostapd
-systemctl restart dnsmasq
+if [[ $TEST_MODE -eq 0 ]]; then
+    systemctl unmask hostapd
+    systemctl enable hostapd
+    systemctl enable dnsmasq
+    systemctl restart dhcpcd
+    systemctl restart hostapd
+    systemctl restart dnsmasq
+fi
 
 if [[ $? -eq 0 ]]; then
     log_message "Access Point setup completed successfully!"

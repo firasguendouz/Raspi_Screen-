@@ -3,7 +3,17 @@
 # Script to monitor connectivity and restart Access Point if necessary
 # Must be run with sudo privileges
 
-# Load configuration from config files
+# Test mode flag
+TEST_MODE=0
+TIMEOUT=0
+if [[ "$1" == "--test-mode" ]]; then
+    TEST_MODE=1
+    if [[ "$2" == "--timeout" ]]; then
+        TIMEOUT=$3
+    fi
+fi
+
+# Configuration
 AP_INTERFACE="wlan0"  # This matches our hostapd.conf
 CHECK_INTERVAL=30     # Check every 30 seconds
 PING_TARGET="8.8.8.8" # Google DNS server
@@ -22,14 +32,27 @@ restart_ap() {
     cp ../config/dhcpcd.conf /etc/dhcpcd.conf
     
     # Restart services
-    sudo systemctl restart dhcpcd
-    sudo systemctl restart hostapd
-    sudo systemctl restart dnsmasq
-    sleep 10  # Allow services to stabilize
+    if [[ $TEST_MODE -eq 0 ]]; then
+        sudo systemctl restart dhcpcd
+        sudo systemctl restart hostapd
+        sudo systemctl restart dnsmasq
+        sleep 10  # Allow services to stabilize
+    fi
 }
 
 # Main monitoring loop
+start_time=$(date +%s)
 while true; do
+    # Check timeout in test mode
+    if [[ $TEST_MODE -eq 1 && $TIMEOUT -gt 0 ]]; then
+        current_time=$(date +%s)
+        elapsed=$((current_time - start_time))
+        if [[ $elapsed -ge $TIMEOUT ]]; then
+            echo "Test timeout reached"
+            exit 0
+        fi
+    fi
+
     # Check internet connectivity
     if ! ping -c 1 -W 5 $PING_TARGET >/dev/null 2>&1; then
         ((failures++))
@@ -52,5 +75,9 @@ while true; do
     fi
 
     # Wait before next check
-    sleep $CHECK_INTERVAL
+    if [[ $TEST_MODE -eq 0 ]]; then
+        sleep $CHECK_INTERVAL
+    else
+        sleep 1  # Faster checks in test mode
+    fi
 done
