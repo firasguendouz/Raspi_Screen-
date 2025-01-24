@@ -1,136 +1,209 @@
-import time
-from flask import Flask, render_template, request, jsonify, session
-import bleach
-import secrets
-import base64
-import subprocess
+#!/usr/bin/env python3
+"""
+Flask Application for Raspberry Pi Screen Management
+Provides web interface and API endpoints for device configuration and monitoring.
+"""
+
 import os
+import json
+import asyncio
 import logging
-from logging.handlers import RotatingFileHandler
-import re
-from translation import TranslationService
+from datetime import datetime
+from functools import wraps
+from typing import Dict, List, Optional
 
-app = Flask(__name__)
+from flask import Flask, request, jsonify, render_template, send_file
+from flask_babel import Babel, gettext
+from werkzeug.middleware.proxy_fix import ProxyFix
+import subprocess
 
-
-
-
-
-
-def sanitize_input(text):
-    """Sanitize user input"""
-    return bleach.clean(text, strip=True)
+from .qr_code import generate_wifi_qr
+from .utils import sanitize_input, validate_ssid, validate_password
 
 # Configure logging
-def setup_logging():
-    """Configure application logging with rotation"""
-    log_file = '/var/log/wifi_setup.log'
-    handler = RotatingFileHandler(log_file, maxBytes=1024*1024, backupCount=5)
-    handler.setFormatter(logging.Formatter(
-        '[%(asctime)s] %(levelname)s: %(message)s'
-    ))
-    app.logger.addHandler(handler)
-    app.logger.setLevel(logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('/var/log/raspi_screen/server.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
+# Initialize Flask app
+app = Flask(__name__)
+app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'default-secret-key')
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
+# Configure Babel for i18n
+babel = Babel(app)
+app.config['BABEL_DEFAULT_LOCALE'] = 'en'
+app.config['LANGUAGES'] = {
+    'en': 'English',
+    'es': 'Español',
+    'fr': 'Français',
+    'de': 'Deutsch'
+}
+
+# Configure proxy settings
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
+def log_request(f):
+    """Decorator to log request details."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Log request details
+        logger.info(
+            'Request: %s %s - IP: %s - User-Agent: %s',
+            request.method,
+            request.path,
+            request.remote_addr,
+            request.user_agent
+        )
+        return f(*args, **kwargs)
+    return decorated_function
+
+@babel.localeselector
+def get_locale():
+    """Determine the best language for the user."""
+    # Check URL parameter
+    lang = request.args.get('lang')
+    if lang and lang in app.config['LANGUAGES']:
+        return lang
+        
+    # Check Accept-Language header
+    return request.accept_languages.best_match(app.config['LANGUAGES'].keys())
+
+async def scan_networks() -> List[Dict]:
+    """
+    Scan for available WiFi networks asynchronously.
+    
+    Returns:
+        List of dictionaries containing network information
+    """
+    try:
+        # Run iwlist scan
+        proc = await asyncio.create_subprocess_shell(
+            "sudo iwlist wlan0 scan | grep -E 'ESSID|Quality|Encryption'",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await proc.communicate()
+        
+        if proc.returncode != 0:
+            logger.error("Network scan failed: %s", stderr.decode())
+            return []
+            
+        # Parse output
+        output = stdout.decode()
+        networks = []
+        current_network = {}
+        
+        for line in output.split('\n'):
+            if 'ESSID' in line:
+                if current_network:
+                    networks.append(current_network)
+                current_network = {'ssid': line.split('"')[1]}
+            elif 'Quality' in line:
+                quality = line.split('=')[1].split('/')[0]
+                current_network['quality'] = int(quality)
+            elif 'Encryption' in line:
+                current_network['encrypted'] = 'on' in line.lower()
+                
+        if current_network:
+            networks.append(current_network)
+            
+        return sorted(networks, key=lambda x: x['quality'], reverse=True)
+        
+    except Exception as e:
+        logger.error("Error scanning networks: %s", str(e))
+        return []
 
 @app.route('/')
+@log_request
 def index():
-    """Serve the Wi-Fi setup page."""
-    return render_template('index.html')
+    """Render main page."""
+    return render_template(
+        'index.html',
+        title=gettext('Raspberry Pi Screen Management')
+    )
 
-@app.route('/configure', methods=['POST'])
-def submit():
-    """Handle Wi-Fi credentials submission."""
+@app.route('/api/networks', methods=['GET'])
+@log_request
+async def get_networks():
+    """API endpoint to scan for WiFi networks."""
+    networks = await scan_networks()
+    return jsonify({'networks': networks})
+
+@app.route('/api/connect', methods=['POST'])
+@log_request
+def connect_wifi():
+    """API endpoint to connect to WiFi network."""
     try:
-        # Sanitize inputs
-        ssid = sanitize_input(request.form.get('ssid', ''))
-        password = request.form.get('password', '')
+        # Accept both JSON and form data
+        if request.is_json:
+            data = request.get_json()
+        else:
+            data = request.form.to_dict()
         
-        # Write credentials to a temporary file for main process to read
-        creds_file = 'wifi_credentials.tmp'
-        with open(creds_file, 'w') as f:
-            f.write(f"{ssid}\n{password}")
+        # Validate and sanitize input
+        ssid = sanitize_input(data.get('ssid', ''))
+        password = data.get('password', '')
+        
+        if not validate_ssid(ssid):
+            return jsonify({'error': 'Invalid SSID'}), 400
+        if not validate_password(password):
+            return jsonify({'error': 'Invalid password'}), 400
             
-        return jsonify({
-            'status': 'success',
-            'message': 'Credentials received'
-        })
+        # Generate QR code
+        try:
+            qr_path = generate_wifi_qr(
+                ssid=ssid,
+                password=password,
+                security='WPA',
+                color=data.get('color', '#000000'),
+                add_logo_flag=data.get('add_logo', True)
+            )
+        except Exception as e:
+            logger.error("QR code generation failed: %s", str(e))
+            return jsonify({'error': 'QR code generation failed'}), 500
             
-    except Exception as e:
-        app.logger.error(f"Failed to save credentials: {str(e)}")
+        # Return QR code path
         return jsonify({
-            'status': 'error',
-            'message': f'Failed to save credentials: {str(e)}'
+            'success': True,
+            'qr_code': qr_path
         })
-
-@app.route('/scan', methods=['GET'])
-def scan_networks():
-    """Scan for available Wi-Fi networks with enhanced network information and error handling."""
-    try:
-        # Try multiple scan attempts
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                # Ensure interface is up
-                subprocess.run(['sudo', 'ifconfig', 'wlan0', 'up'], check=True)
-                time.sleep(1)
-                
-                # Full scan command
-                cmd = "sudo iwlist wlan0 scan"
-                output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8')
-                
-                networks = []
-                current_network = {}
-                
-                for line in output.split('\n'):
-                    line = line.strip()
-                    
-                    if "Cell" in line:  # New network found
-                        if current_network and 'ssid' in current_network:
-                            networks.append(current_network)
-                        current_network = {}
-                    
-                    # Extract network information
-                    if "ESSID:" in line:
-                        ssid = line.split('ESSID:')[1].strip('"')
-                        if ssid:  # Only add non-empty SSIDs
-                            current_network['ssid'] = ssid
-                    elif "Encryption key:" in line:
-                        current_network['encryption'] = "Yes" if "on" in line.lower() else "No"
-                    elif "IE: IEEE 802.11i/WPA2" in line:
-                        current_network['security'] = "WPA2"
-                    elif "IE: WPA Version 1" in line:
-                        current_network['security'] = "WPA"
-                    elif "Signal level=" in line:
-                        match = re.search(r"Signal level=(-\d+) dBm", line)
-                        if match:
-                            current_network['signal'] = match.group(1)
-                
-                # Add last network if exists
-                if current_network and 'ssid' in current_network:
-                    networks.append(current_network)
-                
-                if networks:
-                    app.logger.info(f"Successfully scanned {len(networks)} networks")
-                    return jsonify({'networks': networks})
-                
-            except subprocess.TimeoutExpired:
-                app.logger.warning(f"Scan attempt {attempt + 1} timed out")
-                if attempt < max_retries - 1:
-                    time.sleep(2)
-                    continue
-                
-        return jsonify({'networks': [], 'message': 'No networks found'})
         
     except Exception as e:
-        app.logger.error(f"Network scan failed: {str(e)}")
-        return jsonify({'status': 'error', 'message': str(e), 'networks': []})
+        logger.error("WiFi connection failed: %s", str(e))
+        return jsonify({'error': str(e)}), 500
 
-# Add to existing Flask app
-translation_service = TranslationService()
-app.jinja_env.globals.update(t=translation_service.get_translation)
+@app.route('/qr/<path:filename>')
+@log_request
+def serve_qr(filename):
+    """Serve generated QR code images."""
+    try:
+        return send_file(
+            os.path.join('qr_cache', filename),
+            mimetype='image/png'
+        )
+    except Exception as e:
+        logger.error("Error serving QR code: %s", str(e))
+        return jsonify({'error': 'QR code not found'}), 404
+
+@app.errorhandler(Exception)
+def handle_error(error):
+    """Global error handler."""
+    logger.error("Unhandled error: %s", str(error))
+    return jsonify({
+        'error': 'Internal server error',
+        'message': str(error)
+    }), 500
 
 if __name__ == '__main__':
-    setup_logging()
-    app.run(host='0.0.0.0', port=80)
+    # Ensure log directory exists
+    os.makedirs('/var/log/raspi_screen', exist_ok=True)
+    
+    # Run app
+    app.run(host='0.0.0.0', port=5000)
