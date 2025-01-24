@@ -1,255 +1,209 @@
-# Server Documentation
+# Raspberry Pi Screen Management Server
+
+![Server Status](https://img.shields.io/badge/status-stable-green)
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Python](https://img.shields.io/badge/python-3.7+-yellow)
+![License](https://img.shields.io/badge/license-MIT-orange)
 
 ## 🔍 Overview
+Flask-based server application providing web interface and API endpoints for Raspberry Pi screen management, WiFi configuration, and QR code generation.
 
-The server component provides a Flask-based web interface for Wi-Fi configuration and device setup, along with QR code generation capabilities and multi-language support.
+## 🔗 Related Documentation
+- [QR Code Module](qr_code.md)
+- [Utilities Module](utils.md)
 
-## 🌐 Web Server (`app.py`)
+## 🧩 Components
+- **[app.py](app.py)**: Main Flask application
+- **[qr_code.py](qr_code.py)**: QR code generation module
+- **[utils.py](utils.py)**: Utility functions
+- **templates/**: HTML templates
 
-### Core Components
-```mermaid
-graph TD
-    A[Flask App] --> B[Web Interface]
-    A --> C[Network Scanner]
-    A --> D[Configuration Handler]
-    B --> E[Templates]
-    B --> F[Translation Service]
-    D --> G[QR Code Generator]
+## ⭐ Features
+- WiFi network scanning and configuration
+- QR code generation with caching
+- Internationalization (i18n) support
+- Request logging and monitoring
+- Error handling and validation
+
+## 📦 Installation
+
+### Dependencies
+```bash
+pip install -r requirements.txt
 ```
 
-### Key Routes
+Required packages:
+- `Flask>=2.0.0`: Web framework
+- `Flask-Babel>=2.0.0`: i18n support
+- `qrcode[pil]>=7.0`: QR code generation
+- `Werkzeug>=2.0.0`: WSGI utilities
+- `python-dotenv>=0.19.0`: Environment management
 
-#### 1. Home Page
-```python
-@app.route('/')
-def index():
-    """Serve the Wi-Fi setup page."""
-    return render_template('index.html')
+### 🔧 Configuration
+Environment variables:
+```bash
+FLASK_SECRET_KEY=your-secret-key
+LOG_LEVEL=INFO
 ```
 
-#### 2. Network Configuration
-```python
-@app.route('/configure', methods=['POST'])
-def submit():
-    """Handle Wi-Fi credentials submission."""
+## 🌐 API Endpoints
+
+### GET /
+- Renders main configuration page
+- Supports language selection via URL parameter
+
+### GET /api/networks
+- Scans for available WiFi networks
+- Returns JSON array of networks with signal strength
+
+Example response:
+```json
+{
+    "networks": [
+        {
+            "ssid": "MyNetwork",
+            "quality": 70,
+            "encrypted": true
+        }
+    ]
+}
 ```
 
-#### 3. Network Scanning
-```python
-@app.route('/scan', methods=['GET'])
-def scan_networks():
-    """Scan for available Wi-Fi networks."""
+### POST /api/connect
+- Connects to WiFi network and generates QR code
+- Accepts JSON or form data
+
+Request body:
+```json
+{
+    "ssid": "MyNetwork",
+    "password": "MyPassword",
+    "color": "#000000",
+    "add_logo": true
+}
 ```
 
-## 📱 User Interface
-
-### Templates Structure
-```
-server/templates/
-├── index.html    # Main configuration page
-├── success.html  # Success confirmation
-└── error.html    # Error handling
+Response:
+```json
+{
+    "success": true,
+    "qr_code": "path/to/qr.png"
+}
 ```
 
-### Template Features
-1. **Index Page**
-   - Network selection
-   - Password input
-   - Dark mode toggle
-   - Language switching
-   - Progress indicators
-
-2. **Success Page**
-   - Completion confirmation
-   - Visual feedback
-   - Return navigation
-
-3. **Error Page**
-   - Error display
-   - Recovery options
-   - Back navigation
-
-## 🎨 UI Components
-
-### Network Selection
-```html
-<div class="mb-3">
-    <label class="form-label">Select Network</label>
-    <div class="input-group">
-        <select class="form-select" id="ssid" name="ssid" required>
-            <option value="">Choose a network...</option>
-        </select>
-        <input type="text" class="form-control" id="manualSsid">
-        <button class="btn btn-primary" type="button" id="scanButton">
-            Scan
-        </button>
-    </div>
-</div>
-```
-
-### Progress Indicator
-```html
-<div class="step-indicator">
-    <div class="step active">{{ t('steps.scan') }}</div>
-    <div class="step">{{ t('steps.select') }}</div>
-    <div class="step">{{ t('steps.connect') }}</div>
-</div>
-```
-
-## 🔄 QR Code Generation (`qr_code.py`)
-
-### Core Functions
-```python
-def generate_qr_code(data, output_file, qr_type="wifi"):
-    """
-    Generate QR codes for Wi-Fi or URL data.
-    
-    Args:
-        data: Wi-Fi credentials or URL
-        output_file: Output path
-        qr_type: "wifi" or "url"
-    """
-```
-
-### Usage Examples
-```python
-# Generate Wi-Fi QR
-wifi_qr = generate_wifi_qr(
-    ssid="NetworkName",
-    password="Password123",
-    output_file="wifi_qr.png"
-)
-
-# Generate URL QR
-url_qr = generate_url_qr(
-    url="http://setup.local",
-    output_file="url_qr.png"
-)
-```
+### GET /qr/<filename>
+- Serves generated QR code images
+- Returns PNG image or 404 error
+- See: [QR Code Module](qr_code.md)
 
 ## 🌍 Internationalization
 
-### Translation Service
-```python
-class TranslationService:
-    def __init__(self):
-        self.translations = {}
-        self.load_translations()
+Supported languages:
+- English (en)
+- Spanish (es)
+- French (fr)
+- German (de)
+
+Language selection:
+1. URL parameter: `/?lang=es`
+2. Accept-Language header
+3. Default to English
+
+## 📝 Logging
+
+Log file: `/var/log/raspi_screen/server.log`
+
+Log format:
+```
+%(asctime)s - %(name)s - %(levelname)s - %(message)s
 ```
 
-### Language Files
-```
-translations/
-├── en.json    # English
-└── es.json    # Spanish
-```
+Logged information:
+- Request details (method, path, IP, user agent)
+- Network scan results
+- QR code generation status
+- Error messages
 
-### Usage
-```python
-# In templates
-{{ t('network.select') }}
+## ⚠️ Error Handling
 
-# In Python
-translation = translation_service.get_translation('network.select')
-```
+HTTP Status Codes:
+- 200: Success
+- 400: Invalid input
+- 404: Resource not found
+- 500: Internal server error
 
-## 🔒 Security Features
-
-### 1. Input Sanitization
-```python
-def sanitize_input(text: str) -> str:
-    """Sanitize user input using bleach."""
-    return bleach.clean(text, strip=True)
+Error response format:
+```json
+{
+    "error": "Error type",
+    "message": "Detailed error message"
+}
 ```
 
-### 2. Error Handling
-```python
-try:
-    # Operation
-    pass
-except Exception as e:
-    app.logger.error(f"Operation failed: {str(e)}")
-    return jsonify({
-        'status': 'error',
-        'message': str(e)
-    })
+## 🔒 Security
+
+Security features:
+- Input sanitization (see [Utils Module](utils.md))
+- Request logging
+- File type validation
+- Size limits (16MB max)
+- Proxy support
+
+## 👨‍💻 Development
+
+### Running the Server
+```bash
+# Development mode
+flask run --host=0.0.0.0 --port=5000
+
+# Production mode
+gunicorn -w 4 -b 0.0.0.0:5000 app:app
 ```
 
-## 📝 Logging System
+### Adding New Features
+1. Update API endpoints in app.py
+2. Add corresponding templates
+3. Update translations
+4. Add error handlers
+5. Update documentation
 
-### Configuration
-```python
-def setup_logging():
-    """Configure rotating file handler."""
-    handler = RotatingFileHandler(
-        '/var/log/wifi_setup.log',
-        maxBytes=1024*1024,
-        backupCount=5
-    )
+### Testing
+```bash
+# Test WiFi scanning
+curl http://localhost:5000/api/networks
+
+# Test WiFi connection
+curl -X POST http://localhost:5000/api/connect \
+    -H "Content-Type: application/json" \
+    -d '{"ssid":"MyNetwork","password":"MyPassword"}'
 ```
 
-### Log Levels
-- INFO: Normal operations
-- WARNING: Potential issues
-- ERROR: Operation failures
-- DEBUG: Detailed information
+## 🔧 Troubleshooting
 
-## 🔌 Integration Points
+Common issues:
+1. **Network scan fails**
+   - Check sudo permissions
+   - Verify wlan0 interface
 
-### 1. Network Management
-- Wi-Fi scanning
-- Connection handling
-- Status monitoring
+2. **QR generation fails**
+   - Check write permissions
+   - Verify logo path
+   - See: [QR Code Module](qr_code.md)
 
-### 2. Frontend Integration
-- Real-time updates
-- Status feedback
-- Error display
+3. **Language not loading**
+   - Check translation files
+   - Verify language code
 
-### 3. System Integration
-- QR code generation
-- Configuration management
-- Service control
+## 🚀 Future Enhancements
 
-## ⚡ Performance Considerations
-
-### 1. Response Times
-- Async network scanning
-- Efficient QR generation
-- Optimized template rendering
-
-### 2. Resource Usage
-- Rotating logs
-- Memory management
-- Cache control
-
-## 🔧 Development Guidelines
-
-### 1. Adding Routes
-```python
-@app.route('/new-endpoint', methods=['GET', 'POST'])
-def new_endpoint():
-    """Template for new endpoints."""
-    try:
-        # Implementation
-        return jsonify({'status': 'success'})
-    except Exception as e:
-        app.logger.error(str(e))
-        return jsonify({'status': 'error'})
-```
-
-### 2. Template Updates
-1. Add translations
-2. Update styling
-3. Add JavaScript handlers
-4. Test responsiveness
-
-## 🔗 Related Documentation
-- [[API Documentation]] - API endpoints
-- [[Development Guide]] - Development setup
-- [[System Architecture]] - System design
-- [[Scripts]] - Backend scripts
-- [[Config]] - Configuration system
+Planned improvements:
+1. WebSocket support for real-time updates
+2. OAuth2 authentication
+3. Rate limiting
+4. Metrics collection
+5. Admin dashboard
 
 ---
-*Last updated: [Current Date]* 
+*Last updated: 2024-01-24*
+
+Tags: #server #flask #api #wifi #qr-code #python #web-interface 

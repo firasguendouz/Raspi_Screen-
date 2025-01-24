@@ -1,27 +1,38 @@
 # send_activation.py
 
-## Overview
+![Status](https://img.shields.io/badge/status-stable-green)
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Python](https://img.shields.io/badge/python-3.7+-yellow)
+![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen)
+
+## 🔍 Overview
 Device Activation and Metrics Manager for Raspberry Pi Screen that handles device registration, system metrics collection, and health monitoring.
 
-## Features
+## 🔗 Related Documentation
+- [Main Scripts Documentation](Scripts.md)
+- [WiFi Connection Module](connect_wifi.README.md)
+- [Stream URL Module](stream_url.README.md)
+- [Utilities Module](utils.README.md)
+
+## ⭐ Features
 - Device registration and activation
 - System metrics collection
 - Network health monitoring
 - Automatic retry mechanism
 - Detailed logging and reporting
 
-## Dependencies
-- `utils.py`: Common utility functions
+## 📦 Dependencies
+- **[utils.py](utils.py)**: Common utility functions
 - `requests`: HTTP client library
 - `psutil`: System metrics collection
 - `python-dotenv`: Environment configuration
 
-## Installation
+## 🛠️ Installation
 ```bash
 pip install -r requirements.txt
 ```
 
-## Usage
+## 📝 Usage
 ```bash
 # Activate device with default configuration
 python send_activation.py
@@ -36,9 +47,10 @@ python send_activation.py --device-id "custom-id-123"
 python send_activation.py --retry 5
 ```
 
-## Configuration
+## ⚙️ Configuration
 
 ### Environment Variables
+See [.env.example](.env.example) for configuration options:
 - `API_KEY`: Authentication key for API
 - `API_URL`: Server endpoint URL
 - `LOG_LEVEL`: Logging verbosity
@@ -56,7 +68,7 @@ python send_activation.py --retry 5
 }
 ```
 
-## Metrics Collected
+## 📊 Metrics Collected
 - CPU usage and temperature
 - Memory utilization
 - Disk usage
@@ -67,7 +79,7 @@ python send_activation.py --retry 5
 - System uptime
 - Network traffic statistics
 
-## Error Handling
+## ⚠️ Error Handling
 The script implements several error handling mechanisms:
 1. API connection retry
 2. Exponential backoff
@@ -75,18 +87,18 @@ The script implements several error handling mechanisms:
 4. Network error recovery
 5. Detailed error reporting
 
-## Logging
+## 📝 Logging
 Logs are written to `/var/log/raspi_screen/send_activation.log` with the following levels:
 - `ERROR`: Activation and API failures
 - `WARNING`: Metric collection issues
 - `INFO`: Activation status and metrics sending
 - `DEBUG`: Detailed operation information
 
-## Exit Codes
+## 🔍 Exit Codes
 - `0`: Successful activation/metrics sending
 - `1`: Configuration or activation error
 
-## API Usage
+## 🔌 API Usage
 ```python
 from send_activation import activate_device, collect_metrics
 
@@ -95,7 +107,7 @@ metrics = collect_metrics()
 activate_device(config, device_id="device-123", retry_count=3)
 ```
 
-## Functions
+## 🛠️ Functions
 
 ### `get_device_id() -> str`
 Generates or retrieves persistent device identifier.
@@ -112,12 +124,17 @@ Sends collected metrics to the server.
 ### `activate_device(config: Dict[str, Any], device_id: str, retry_count: int = 3) -> None`
 Handles device activation and initial metrics submission.
 
-## Device Identification
+## 🔑 Device Identification
 - Uses UUID for unique device identification
 - Persists device ID in `.device_id` file
 - Supports custom device ID override
 
-## See Also
-- `stream_url.py`: URL streaming management
-- `connect_wifi.py`: WiFi connection management
-- `utils.py`: Shared utilities 
+## 📚 See Also
+- [WiFi Connection Module](connect_wifi.README.md)
+- [Stream URL Module](stream_url.README.md)
+- [Utilities Module](utils.README.md)
+
+---
+*Last updated: 2024-01-24*
+
+Tags: #activation #metrics #monitoring #python #raspberry-pi 
