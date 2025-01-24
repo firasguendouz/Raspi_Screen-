@@ -26,8 +26,24 @@ readonly DEFAULT_ENV="$ENV_PROD"  # Default to production environment
 readonly DEFAULT_INTERFACE="wlan0"  # Default wireless interface
 readonly DEFAULT_IP="192.168.4.1"   # Default AP IP address
 readonly DEFAULT_NETMASK="255.255.255.0"  # Default network mask
-readonly DEFAULT_DHCP_RANGE="192.168.4.2,192.168.4.20"  # DHCP address range
+readonly DEFAULT_DHCP_START="192.168.4.2"  # Start of DHCP range
+readonly DEFAULT_DHCP_END="192.168.4.100"  # End of DHCP range
 readonly DEFAULT_LEASE_TIME="24h"    # DHCP lease duration
+readonly DEFAULT_COUNTRY="US"        # Default country code
+readonly DEFAULT_MAX_CLIENTS="100"   # Maximum number of DHCP clients
+
+# Client mode configuration
+readonly DEFAULT_CLIENT_SSID=""      # Default client SSID
+readonly DEFAULT_CLIENT_PSK=""       # Default client PSK
+readonly DEFAULT_CLIENT_IDENTITY=""  # Default enterprise identity
+readonly DEFAULT_CLIENT_PASSWORD=""  # Default enterprise password
+
+# Logging configuration
+readonly DEFAULT_LOG_LEVEL="INFO"    # Default log level
+readonly DEFAULT_LOG_DIR="/var/log"  # Default log directory
+readonly LOG_DHCPCD="${DEFAULT_LOG_DIR}/dhcpcd.log"
+readonly LOG_DNSMASQ="${DEFAULT_LOG_DIR}/dnsmasq.log"
+readonly LOG_HOSTAPD="${DEFAULT_LOG_DIR}/hostapd.log"
 
 # Service and directory configuration
 readonly REQUIRED_SERVICES=("hostapd" "dnsmasq" "dhcpcd")  # Core AP services
