@@ -38,42 +38,32 @@ fi
 # Validate root privileges
 check_root
 
-# Function to stop and disable AP services
+# Function to stop AP services
 # Stops and disables all AP-related services
-# Processes services in reverse dependency order
 # Returns:
 #   0 on success, 1 on failure
 stop_ap_services() {
     log_info "Stopping AP services..."
     
-    # Stop and disable services in reverse dependency order
-    # This ensures clean shutdown without dependency conflicts
-    for service in $(echo "${REQUIRED_SERVICES[@]}" | tac -s' '); do
-        log_debug "Stopping and disabling $service..."
-        stop_service "$service"
-        disable_service "$service"
-    done
+    if [[ "$AP_ENV" != "$ENV_TEST" ]]; then
+        # Stop services in reverse dependency order
+        for service in "${REQUIRED_SERVICES[@]}"; do
+            stop_service "$service"
+            disable_service "$service"
+        done
+    fi
+    return 0
 }
 
 # Function to restore network configuration
-# Restores original network configuration
-# Restores backups and disables AP-specific settings
+# Restores original network settings and removes AP configurations
 # Returns:
 #   0 on success, 1 on failure
 restore_network_config() {
     log_info "Restoring network configuration..."
     
-    # Restore original configuration files from backups
-    # Processes core network configuration files
-    for config in dhcpcd.conf dnsmasq.conf "hostapd/hostapd.conf"; do
-        local backup="/etc/${config}.backup"
-        if [[ -f "$backup" ]]; then
-            log_debug "Restoring backup: /etc/$config"
-            copy_config "$backup" "/etc/$config"
-        else
-            log_warn "No backup found for /etc/$config"
-        fi
-    done
+    # Restore original configuration files
+    restore_config_files || return 1
     
     # Disable IP forwarding for normal client mode
     log_debug "Disabling IP forwarding..."

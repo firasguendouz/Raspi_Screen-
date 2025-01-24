@@ -29,7 +29,12 @@ sudo ./stop_ap.sh --test-mode
 ```
 
 ## Configuration
-Settings can be configured via environment variables or `env.routes`:
+Settings can be configured via environment variables or `env.routes`. Configuration files are managed from the `/config` directory:
+
+### Configuration Files
+- `wpa_supplicant.conf`: WiFi client settings
+- `dhcpcd.conf`: Network interface settings
+- Other AP configurations for backup/restore
 
 ### Core Settings
 - `AP_INTERFACE`: Network interface
@@ -55,12 +60,12 @@ See `env.routes` for complete configuration options.
    - Clean up service states
 
 3. **Network Restoration**
-   - Restore original configurations
+   - Restore original configurations from backups
    - Disable IP forwarding
    - Remove firewall rules
 
 4. **Client Mode Setup**
-   - Start wpa_supplicant
+   - Copy wpa_supplicant configuration from `/config`
    - Configure client networking
    - Verify connectivity
 
@@ -69,11 +74,11 @@ See `env.routes` for complete configuration options.
 - `1`: General failure
 - Other: Specific error codes
 
-## Configuration Backup
+## Configuration Management
 - Original configurations backed up during setup
 - Automatic restoration during shutdown
 - Verification of restored configs
-- Fallback to defaults if needed
+- Fallback to `/config` defaults if needed
 
 ## Network Transition
 1. **AP Shutdown**
@@ -82,7 +87,7 @@ See `env.routes` for complete configuration options.
    - Clear AP configurations
 
 2. **Client Setup**
-   - Restore wpa_supplicant
+   - Restore wpa_supplicant from `/config`
    - Configure DHCP client
    - Enable client mode
 
@@ -112,7 +117,7 @@ Test mode features:
 
 2. **Configuration Errors**
    - Backup restoration
-   - Default fallback
+   - Default fallback from `/config`
    - Error notification
 
 3. **Network Errors**
@@ -147,12 +152,12 @@ sudo ./stop_ap.sh
 
 2. **Network Problems**
    - Check interface status
-   - Verify configurations
+   - Verify configurations in `/config`
    - Test connectivity
 
 3. **Configuration Issues**
    - Check backup files
-   - Verify file permissions
+   - Verify `/config` contents
    - Review system logs
 
 ## Integration

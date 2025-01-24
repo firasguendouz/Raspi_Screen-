@@ -10,6 +10,7 @@ Script for initializing and configuring a WiFi Access Point on a Raspberry Pi. T
 - Configuration validation
 - Detailed logging
 - Test mode support
+- Configuration backup and restore
 
 ## Dependencies
 - `utils.sh`: Common utility functions
@@ -29,7 +30,13 @@ sudo ./setup_ap.sh --test-mode
 ```
 
 ## Configuration
-All settings can be configured via environment variables or `env.routes`:
+All settings can be configured via environment variables or `env.routes`. Configuration files are stored in the `/config` directory:
+
+### Configuration Files
+- `hostapd.conf`: Access Point settings
+- `dnsmasq.conf`: DHCP and DNS settings
+- `dhcpcd.conf`: Network interface settings
+- `wpa_supplicant.conf`: WiFi client settings
 
 ### Core Settings
 - `AP_SSID`: WiFi network name
@@ -57,8 +64,8 @@ See `env.routes` for complete configuration options.
    - Clean up service states
 
 3. **Configuration**
-   - Generate hostapd configuration
-   - Generate dnsmasq configuration
+   - Backup existing configurations
+   - Copy configurations from `/config`
    - Configure network settings
    - Set up firewall rules
 
@@ -88,8 +95,8 @@ Test mode (`--test-mode`) provides:
 - Service startup validation
 - Configuration validation
 - Network interface checking
-- Automatic cleanup on failure
-- Configuration backups
+- Automatic configuration backup/restore
+- Cleanup on failure
 
 ## Security
 - Root privilege requirement
@@ -123,7 +130,7 @@ sudo ./setup_ap.sh --test-mode
 1. **Service Failures**
    - Check service status with `systemctl status <service>`
    - Review logs in `/var/log/ap_setup.log`
-   - Verify configuration files
+   - Verify configuration files in `/config`
 
 2. **Network Issues**
    - Validate interface with `ip link show`
@@ -134,6 +141,11 @@ sudo ./setup_ap.sh --test-mode
    - Ensure running with sudo
    - Check file permissions
    - Verify service access
+
+4. **Configuration Issues**
+   - Check files in `/config` directory
+   - Verify configuration backups
+   - Review configuration logs
 
 ## See Also
 - [utils.README.md](utils.README.md): Utility functions documentation

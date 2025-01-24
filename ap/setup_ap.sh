@@ -26,7 +26,6 @@ source "$(dirname "$0")/utils.sh"
 init_environment "$@"
 
 # Configuration
-readonly CONFIG_DIR="../config"
 readonly REQUIRED_SERVICES=("hostapd" "dnsmasq" "dhcpcd")
 readonly LOG_FILE="/var/log/ap_setup.log"
 
@@ -64,15 +63,8 @@ stop_services() {
 setup_configurations() {
     log_info "Setting up configuration files..."
     
-    # Create required directories if they don't exist
-    mkdir -p /etc/hostapd
-    
-    # Generate configuration files from environment settings
-    log_debug "Generating hostapd configuration..."
-    generate_hostapd_config "/etc/hostapd/hostapd.conf" || return 1
-    
-    log_debug "Generating dnsmasq configuration..."
-    generate_dnsmasq_config "/etc/dnsmasq.conf" || return 1
+    # Set up all configuration files using utility function
+    setup_config_files || return 1
     
     # Configure hostapd daemon to use our configuration
     log_debug "Configuring hostapd daemon..."

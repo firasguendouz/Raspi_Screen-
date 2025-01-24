@@ -31,8 +31,15 @@ readonly DEFAULT_LEASE_TIME="24h"    # DHCP lease duration
 
 # Service and directory configuration
 readonly REQUIRED_SERVICES=("hostapd" "dnsmasq" "dhcpcd")  # Core AP services
-readonly CONFIG_DIR="../config"  # Configuration files directory
+readonly CONFIG_DIR="$(dirname "$0")/../config"
 readonly LOG_DIR="/var/log"      # System logs directory
+
+# Configuration paths
+readonly SYSTEM_CONFIG_DIR="/etc"
+readonly HOSTAPD_CONF="$SYSTEM_CONFIG_DIR/hostapd/hostapd.conf"
+readonly DNSMASQ_CONF="$SYSTEM_CONFIG_DIR/dnsmasq.conf"
+readonly DHCPCD_CONF="$SYSTEM_CONFIG_DIR/dhcpcd.conf"
+readonly WPA_SUPPLICANT_CONF="$SYSTEM_CONFIG_DIR/wpa_supplicant/wpa_supplicant.conf"
 
 # Log level definitions and ANSI color codes for terminal output
 readonly LOG_ERROR="ERROR"  # Critical errors that prevent normal operation
@@ -429,4 +436,99 @@ address=/gw.wlan/$AP_IP
 EOF
     
     validate_cmd "generate dnsmasq configuration" $?
+}
+
+# Copy configuration file from config directory to system location
+# Args:
+#   $1 - Source filename (without path)
+#   $2 - Destination path
+# Returns:
+#   0 on success, 1 on failure
+copy_config_file() {
+    local source_file="$CONFIG_DIR/$1"
+    local dest_file="$2"
+    
+    if [[ ! -f "$source_file" ]]; then
+        log_error "Configuration file not found: $source_file"
+        return 1
+    }
+    
+    log_debug "Copying configuration: $source_file -> $dest_file"
+    cp "$source_file" "$dest_file"
+    validate_cmd "copy configuration file" $?
+}
+
+# Backup configuration file
+# Args:
+#   $1 - File path to backup
+# Returns:
+#   0 on success, 1 on failure
+backup_config_file() {
+    local file_path="$1"
+    local backup_path="${file_path}.backup"
+    
+    if [[ -f "$file_path" ]]; then
+        log_debug "Backing up configuration: $file_path -> $backup_path"
+        cp "$file_path" "$backup_path"
+        validate_cmd "backup configuration file" $?
+    fi
+}
+
+# Restore configuration file from backup
+# Args:
+#   $1 - File path to restore
+# Returns:
+#   0 on success, 1 on failure
+restore_config_file() {
+    local file_path="$1"
+    local backup_path="${file_path}.backup"
+    
+    if [[ -f "$backup_path" ]]; then
+        log_debug "Restoring configuration: $backup_path -> $file_path"
+        mv "$backup_path" "$file_path"
+        validate_cmd "restore configuration file" $?
+    fi
+}
+
+# Setup all configuration files
+# Args:
+#   None
+# Returns:
+#   0 on success, 1 on failure
+setup_config_files() {
+    log_info "Setting up configuration files..."
+    
+    # Create required directories
+    mkdir -p "$(dirname "$HOSTAPD_CONF")"
+    mkdir -p "$(dirname "$WPA_SUPPLICANT_CONF")"
+    
+    # Backup existing configurations
+    backup_config_file "$HOSTAPD_CONF"
+    backup_config_file "$DNSMASQ_CONF"
+    backup_config_file "$DHCPCD_CONF"
+    backup_config_file "$WPA_SUPPLICANT_CONF"
+    
+    # Copy new configurations
+    copy_config_file "hostapd.conf" "$HOSTAPD_CONF" || return 1
+    copy_config_file "dnsmasq.conf" "$DNSMASQ_CONF" || return 1
+    copy_config_file "dhcpcd.conf" "$DHCPCD_CONF" || return 1
+    copy_config_file "wpa_supplicant.conf" "$WPA_SUPPLICANT_CONF" || return 1
+    
+    return 0
+}
+
+# Restore all configuration files
+# Args:
+#   None
+# Returns:
+#   0 on success, 1 on failure
+restore_config_files() {
+    log_info "Restoring configuration files..."
+    
+    restore_config_file "$HOSTAPD_CONF"
+    restore_config_file "$DNSMASQ_CONF"
+    restore_config_file "$DHCPCD_CONF"
+    restore_config_file "$WPA_SUPPLICANT_CONF"
+    
+    return 0
 } 

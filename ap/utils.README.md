@@ -10,6 +10,50 @@ Core utility library providing common functionality for AP (Access Point) manage
 - `iptables`: Firewall configuration
 - `bash` (version 4+): Script execution
 
+## Configuration Management
+
+### Configuration Paths
+```bash
+# System Configuration Paths
+SYSTEM_CONFIG_DIR="/etc"
+HOSTAPD_CONF="/etc/hostapd/hostapd.conf"
+DNSMASQ_CONF="/etc/dnsmasq.conf"
+DHCPCD_CONF="/etc/dhcpcd.conf"
+WPA_SUPPLICANT_CONF="/etc/wpa_supplicant/wpa_supplicant.conf"
+
+# Source Configuration Directory
+CONFIG_DIR="$(dirname "$0")/../config"
+```
+
+### Configuration Functions
+
+#### File Management
+```bash
+# Copy configuration from config directory
+copy_config_file "source_filename" "destination_path"
+
+# Backup configuration
+backup_config_file "/path/to/config"
+
+# Restore configuration from backup
+restore_config_file "/path/to/config"
+
+# Setup all configurations
+setup_config_files
+
+# Restore all configurations
+restore_config_files
+```
+
+#### Configuration Generation
+```bash
+# Generate hostapd configuration
+generate_hostapd_config "/etc/hostapd/hostapd.conf"
+
+# Generate dnsmasq configuration
+generate_dnsmasq_config "/etc/dnsmasq.conf"
+```
+
 ## Environment Variables
 All environment variables can be set either in `env.routes` or exported before running scripts:
 
@@ -59,22 +103,19 @@ test_connectivity [target] [timeout]
 configure_firewall
 ```
 
-### Configuration Management
-```bash
-copy_config "source_path" "dest_path"
-generate_hostapd_config "output_path"
-generate_dnsmasq_config "output_path"
-```
-
 ## Usage Example
 ```bash
 source ./utils.sh
 init_environment --test-mode wlan0
 check_root
 
+# Setup configurations
+setup_config_files || exit 1
+
+# Validate and start services
 if validate_interface "$AP_INTERFACE"; then
     log_info "Interface $AP_INTERFACE is valid"
-    generate_hostapd_config "/etc/hostapd/hostapd.conf"
+    start_service "hostapd"
 fi
 ```
 
