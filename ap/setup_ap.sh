@@ -20,54 +20,22 @@ systemctl stop wpa_supplicant
 systemctl stop hostapd
 systemctl stop dnsmasq
 
-# Configure static IP for wlan0
-log_message "Configuring static IP for wlan0..."
-cat <<EOF > /etc/dhcpcd.conf
-interface wlan0
-static ip_address=192.168.4.1/24
-nohook wpa_supplicant
-EOF
-systemctl restart dhcpcd
+# Copy configuration files
+log_message "Copying configuration files..."
+cp ../config/dhcpcd.conf /etc/dhcpcd.conf
+cp ../config/hostapd.conf /etc/hostapd/hostapd.conf
+cp ../config/dnsmasq.conf /etc/dnsmasq.conf
 
 if [[ $? -ne 0 ]]; then
-    echo "[ERROR] Failed to configure static IP. Exiting."
+    echo "[ERROR] Failed to copy configuration files. Exiting."
     exit 1
 fi
-
-# Configure hostapd
-log_message "Configuring hostapd..."
-cat <<EOF > /etc/hostapd/hostapd.conf
-interface=wlan0
-driver=nl80211
-ssid=RaspberryPi_AP
-hw_mode=g
-channel=7
-macaddr_acl=0
-auth_algs=1
-ignore_broadcast_ssid=0
-wpa=2
-wpa_passphrase=raspberry
-wpa_key_mgmt=WPA-PSK
-rsn_pairwise=CCMP
-EOF
 
 # Point hostapd to its configuration file
 sed -i 's|#DAEMON_CONF=""|DAEMON_CONF="/etc/hostapd/hostapd.conf"|' /etc/default/hostapd
 
 if [[ $? -ne 0 ]]; then
     echo "[ERROR] Failed to configure hostapd. Exiting."
-    exit 1
-fi
-
-# Configure dnsmasq
-log_message "Configuring dnsmasq..."
-cat <<EOF > /etc/dnsmasq.conf
-interface=wlan0
-dhcp-range=192.168.4.2,192.168.4.20,255.255.255.0,24h
-EOF
-
-if [[ $? -ne 0 ]]; then
-    echo "[ERROR] Failed to configure dnsmasq. Exiting."
     exit 1
 fi
 
@@ -95,6 +63,7 @@ log_message "Restarting services..."
 systemctl unmask hostapd
 systemctl enable hostapd
 systemctl enable dnsmasq
+systemctl restart dhcpcd
 systemctl restart hostapd
 systemctl restart dnsmasq
 

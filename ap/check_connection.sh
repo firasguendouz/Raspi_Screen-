@@ -3,10 +3,10 @@
 # Script to monitor connectivity and restart Access Point if necessary
 # Must be run with sudo privileges
 
-# Configuration
-AP_INTERFACE="wlan0"
-CHECK_INTERVAL=30  # Check every 30 seconds
-PING_TARGET="8.8.8.8"  # Google DNS server
+# Load configuration from config files
+AP_INTERFACE="wlan0"  # This matches our hostapd.conf
+CHECK_INTERVAL=30     # Check every 30 seconds
+PING_TARGET="8.8.8.8" # Google DNS server
 MAX_FAILURES=3
 
 # Initialize failure counter
@@ -15,6 +15,14 @@ failures=0
 # Function to restart AP
 restart_ap() {
     echo "$(date): Restarting Access Point services..."
+    
+    # Re-copy configuration files to ensure clean state
+    cp ../config/hostapd.conf /etc/hostapd/hostapd.conf
+    cp ../config/dnsmasq.conf /etc/dnsmasq.conf
+    cp ../config/dhcpcd.conf /etc/dhcpcd.conf
+    
+    # Restart services
+    sudo systemctl restart dhcpcd
     sudo systemctl restart hostapd
     sudo systemctl restart dnsmasq
     sleep 10  # Allow services to stabilize

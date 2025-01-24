@@ -1,6 +1,18 @@
 # Project TODO List
 
-## 🎯 High Priority
+## �� High Priority
+
+### WiFi Connection Improvements
+- [ ] Add WiFi signal strength indicator during network scanning
+- [ ] Implement automatic reconnection with exponential backoff
+- [ ] Add support for WPA3 networks
+- [ ] Create connection quality monitoring system
+- [ ] Implement connection history with last successful networks
+- [ ] Add QR code error correction level configuration
+- [ ] Implement progressive web app (PWA) for setup interface
+- [ ] Add network connection timeout handling
+- [ ] Create connection diagnostics tool
+- [ ] Add support for hidden SSIDs
 
 ### Security Enhancements
 - [ ] Implement token-based authentication for API endpoints
@@ -34,6 +46,18 @@ graph TD
 - [ ] Enhance mobile responsiveness
 
 ## 🔄 System Stability
+
+### Connection Reliability
+- [ ] Implement connection state machine for better flow control
+- [ ] Add retry mechanism for failed QR code scans
+- [ ] Create connection attempt logging system
+- [ ] Implement graceful AP mode fallback
+- [ ] Add network interface monitoring
+- [ ] Create connection recovery procedures
+- [ ] Implement connection health checks
+- [ ] Add WiFi driver compatibility checks
+- [ ] Create network configuration backup system
+- [ ] Implement connection stress testing
 
 ### Error Handling
 - [ ] Implement global error boundary

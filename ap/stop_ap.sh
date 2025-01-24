@@ -23,20 +23,23 @@ systemctl disable dnsmasq
 echo "Bringing down the wlan0 interface..."
 ip link set wlan0 down
 
-
-# Restore /etc/dhcpcd.conf
-echo "Restoring /etc/dhcpcd.conf..."
-sed -i '/interface wlan0/d' /etc/dhcpcd.conf
-sed -i '/static ip_address=192.168.4.1/d' /etc/dhcpcd.conf
-sed -i '/nohook wpa_supplicant/d' /etc/dhcpcd.conf
-
-# Restore /etc/dnsmasq.conf
-echo "Restoring /etc/dnsmasq.conf..."
-if [[ -f /etc/dnsmasq.conf ]]; then
-    mv /etc/dnsmasq.conf /etc/dnsmasq.conf.bak
+# Backup and restore configuration files
+echo "Restoring default configurations..."
+if [[ -f /etc/dhcpcd.conf ]]; then
+    mv /etc/dhcpcd.conf /etc/dhcpcd.conf.ap.bak
 fi
 
-touch /etc/dnsmasq.conf
+if [[ -f /etc/dnsmasq.conf ]]; then
+    mv /etc/dnsmasq.conf /etc/dnsmasq.conf.ap.bak
+fi
+
+if [[ -f /etc/hostapd/hostapd.conf ]]; then
+    mv /etc/hostapd/hostapd.conf /etc/hostapd/hostapd.conf.ap.bak
+fi
+
+# Create minimal default configurations
+echo "" > /etc/dnsmasq.conf
+cp ../config/wpa_supplicant.conf /etc/wpa_supplicant/wpa_supplicant.conf
 
 # Restart necessary services
 echo "Restarting necessary services..."
@@ -52,6 +55,7 @@ ip link set wlan0 up
 echo "Restoring default DNS resolver..."
 echo "nameserver 8.8.8.8" > /etc/resolv.conf
 echo "nameserver 8.8.4.4" >> /etc/resolv.conf
+
 # Check Wi-Fi interface status
 if iwconfig wlan0 | grep -q "ESSID"; then
     echo "Wi-Fi interface restored successfully. You can now connect to a Wi-Fi network."
