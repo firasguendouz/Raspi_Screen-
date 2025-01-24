@@ -1,185 +1,182 @@
-# Raspberry Pi Wi-Fi Configuration and Screen Activation System
+# Raspberry Pi Wi-Fi Configuration and Screen Management System
 
-## Project Overview
-This project enables Raspberry Pi devices to serve as screen management systems for hosts. The system performs the following tasks:
+## 🎯 Overview
 
-1. **Access Point (AP) Creation**: The Raspberry Pi creates a Wi-Fi hotspot if no network is configured.
-2. **Configuration Web Page**: A local Flask-based web server allows hosts to input Wi-Fi credentials.
-3. **Wi-Fi Connection**: The Raspberry Pi connects to the provided Wi-Fi and verifies the connection.
-4. **Screen Activation**: Upon successful connection, the Raspberry Pi communicates with a central server to activate the screen.
-5. **Streaming Mode**: After activation, the Raspberry Pi streams advertisements or other content from the server in full-screen mode.
+This project transforms Raspberry Pi devices into intelligent display management systems with automated Wi-Fi setup and screen activation capabilities.
 
+## 🔄 System Workflows
 
+### Connected Device Flow
+```mermaid
+graph TD
+    A[Start main.py] --> B[Launch PyWebView]
+    B --> C[Check Connection]
+    C --> D{Connected?}
+    D -->|Yes| E[Display Connected Status]
+    E --> F[Send Activation]
+    F --> G[Display Done]
+    G --> H[Stop PyWebView]
+    H --> I[End Process]
+```
 
+### New Setup Flow
+```mermaid
+graph TD
+    A[Start main.py] --> B[Launch PyWebView]
+    B --> C[Check Connection]
+    C --> D{Connected?}
+    D -->|No| E[Start Access Point]
+    E --> F[Display Loading]
+    F --> G[Show QR Code]
+    G --> H[Wait for Connection]
+    H --> I[Show Setup QR]
+    I --> J[User Scans & Connects]
+    J --> K[Process Credentials]
+    K --> L{Connection Success?}
+    L -->|Yes| M[Send Activation]
+    L -->|No| E
+    M --> N[Stop PyWebView]
+```
 
-## Project Structure
+## 🛠️ Core Components
+
+### 1. Network Management
+- **Access Point Control**: `ap/setup_ap.sh`, `ap/stop_ap.sh`
+- **Connection Monitoring**: `ap/check_connection.sh`
+- **Wi-Fi Configuration**: `scripts/connect_wifi.py`
+
+### 2. User Interface
+- **Web Server**: Flask-based configuration portal
+- **Display Manager**: PyWebView full-screen interface
+- **QR Code Generator**: Easy network and setup access
+
+### 3. System Services
+- **Activation Client**: Device registration system
+- **Status Monitor**: Real-time system feedback
+- **Multi-language Support**: English/Spanish localization
+
+## 📁 Project Structure
+
 ```
 raspi-setup/
-├── ap/
-│   ├── setup_ap.sh
-│   ├── stop_ap.sh
-│   └── check_connection.sh
-├── server/
-│   ├── app.py
-│   ├── qr_code.py
-│   └── __init__.py
-├── scripts/
-│   ├── connect_wifi.py
-│   ├── send_activation.py
-│   └── stream_url.py
-├── config/
-│   ├── hostapd.conf
-│   ├── dnsmasq.conf
-│   └── wpa_supplicant.conf
-├── templates/
-│   ├── index.html
-│   └── success.html
-├── static/
-│   ├── logo.png
-│   ├── default.html
-│   └── qrcode.png
-├── logs/
-│   ├── setup.log
-│   ├── ap.log
-│   └── connection.log
-├── main.py
-└── README.md
-
+├── ap/                    # Access Point scripts
+│   ├── setup_ap.sh       # AP initialization
+│   ├── stop_ap.sh        # AP termination
+│   └── check_connection.sh # Connectivity monitor
+├── server/               # Web interface
+│   ├── app.py           # Flask application
+│   ├── qr_code.py       # QR generation
+│   └── templates/       # HTML views
+├── scripts/             # Core functionality
+│   ├── connect_wifi.py  # Network connection
+│   ├── send_activation.py # Device activation
+│   └── stream_url.py    # Content streaming
+└── ui_manager/          # PyWebView interface
 ```
 
-## How to Run the Project
+## 🚀 Getting Started
 
 ### Prerequisites
-1. **Hardware**: Raspberry Pi with Wi-Fi capability.
-2. **Software**: Raspbian OS (or similar) installed and updated.
-3. **Python**: Ensure Python 3.7+ is installed.
-4. **Dependencies**:
-   - Flask
-   - qrcode
-   - requests
+- Raspberry Pi (3/4/Zero W)
+- Raspbian OS (Bullseye+)
+- Python 3.7+
+- Connected display
 
-### Setup Instructions
+### Installation
 
-1. **Clone the Repository**:
-   ```bash
-   git clone <repository-url>
-   cd raspi-setup
-   ```
-Create a Virtual Environment
-Using venv:
+1. **Clone Repository**
+```bash
+git clone <repository-url>
+cd raspi-setup
+```
 
+2. **Setup Environment**
+```bash
 python3 -m venv env
-
-Using virtualenv:
-
-virtualenv env
-
-
 source env/bin/activate
+pip install -r requirements.txt
+```
 
+3. **Configure System**
+```bash
+sudo chmod +x ap/*.sh
+sudo chmod +x scripts/*.sh
+```
 
-2. **Install Python Dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+4. **Environment Variables**
+Create `.env`:
+```bash
+SERVER_URL=http://your-server:5001
+SERVER_PORT=5001
+FLASK_ENV=production
+```
 
-3. **Grant Execution Permissions**:
-   ```bash
-   chmod +x ap/*.sh
-   chmod +x scripts/*.sh
-   ```
+5. **Launch Application**
+```bash
+sudo python3 main.py
+```
 
-4. **Run the Main Script**:
-   ```bash
-   sudo python3 main.py
-   ```
+## 🔍 Development Guide
 
-5. **Follow On-Screen Instructions**:
-   - Connect to the Access Point.
-   - Navigate to the local configuration page.
-   - Enter Wi-Fi credentials.
+### Testing
+```bash
+# Full test suite
+python -m pytest
 
-6. **Activate the Screen**:
-   - After successful Wi-Fi setup, register the screen in the central web application using the displayed unique screen ID.
+# Component tests
+python test_qr_display.py
+python test_webview.py
+```
 
-7. **Streaming Mode**:
-   - The Raspberry Pi will switch to streaming mode and begin displaying assigned content.
+### Adding Features
+1. Create feature branch
+2. Update components
+3. Add translations if needed
+4. Run tests
+5. Submit PR
 
-## To-Do List
-This to-do list breaks the project into manageable steps. Cross off tasks as you complete them:
+## 🐛 Troubleshooting
 
-### AP Initialization and Setup
-- [ ] Configure `hostapd` for Access Point mode.
-- [ ] Configure `dnsmasq` for DHCP and DNS redirection.
-- [ ] Create `setup_ap.sh` to initialize AP mode.
-- [ ] Create `stop_ap.sh` to stop AP mode.
-- [ ] Create `check_connection.sh` to monitor connectivity and restart AP if needed.
-- [ ] Implement `qr_code.py` to generate and display QR codes.
+### Common Issues
+1. **Network Connection Failed**
+   - Check `logs/connection.log`
+   - Verify network interface status
+   - Review AP configuration
 
-### Local Web Server for Wi-Fi Configuration
-- [ ] Create Flask server in `app.py`.
-- [ ] Implement Wi-Fi credential handling in `wifi_config.py`.
-- [ ] Design HTML templates for `index.html` and `success.html`.
-- [ ] Test local redirection and form submission.
+2. **Display Issues**
+   - Confirm PyWebView installation
+   - Check display connection
+   - Verify permissions
 
-### Wi-Fi Connection and Validation
-- [ ] Write `connect_wifi.py` to apply credentials and test connections.
-- [ ] Develop logic to revert to AP mode on failure.
-- [ ] Log connection attempts in `connection.log`.
+3. **Activation Failed**
+   - Check server connectivity
+   - Verify credentials
+   - Review `logs/activation.log`
 
-### Communication with Central Server
-- [ ] Implement `send_activation.py` to send activation requests.
-- [ ] Define server response handling for screen activation and streaming URL.
-- [ ] Test server communication for reliability.
+## 📝 Notes
 
-### Streaming Mode
-- [ ] Implement `stream_url.py` to launch the browser in kiosk mode.
-- [ ] Test streaming content with a fallback offline mode.
-- [ ] Monitor network status and log in `ap.log`.
+### Important Files
+- [[main.py]] - Application entry point
+- [[server/app.py]] - Web server implementation
+- [[ui_manager/ui_manager.py]] - Display management
 
-### Documentation and Final Testing
-- [ ] Update `README.md` with final instructions and troubleshooting steps.
-- [ ] Test the entire workflow from AP initialization to streaming mode.
-- [ ] Provide detailed error handling for edge cases.
+### Related
+- [[Development Guide]]
+- [[Troubleshooting Guide]]
+- [[API Documentation]]
+
+## 🤝 Contributing
+1. Fork repository
+2. Create feature branch
+3. Follow coding standards
+4. Add tests
+5. Submit pull request
+
+## 📄 License
+[Your License]
+
+## 💬 Support
+[Contact Information]
 
 ---
-
-This document ensures all contributors understand the project structure, functionality, and setup process. Work through the to-do list step by step, ensuring each feature is tested and functional before proceeding to the next.
-
-
-
-TODO 
-
-
-start main.py
-start a pywebview full screen to display logs and and info 
-raspi display checking if connected 
-raspi check if its connected
-YES - raspi display that is already connected and sending activation 
-send activation -  display DONE
-pywebview and code stops 
-stop main
-
-
-and for 
-start main.py
-start a pywebview full screen to display logs and and info 
-raspi display checking if connected 
-raspi check if its connected
-No- raspi display raspi not connected 
-raspi Start Acccess point - and it display Loading icon untill AP is rterady then display QR code to connect to raspiAP 
-
-user connect by scanning code 
-user connected - raspi display client connected and the qr code for  connecting raspi ap it dissapear and another it get displayed user scan to visit the raspi local hosted page for creds 
-
-user scan and enter page - raspi detect by löistening and it display a msg in progress instead of QR code of website 
-
-user submit creds - raspi display getting creds .....
-
-raspi check creds if connected or fails 
-if connected in pywebview it display connected then stop 
-and if no 
-says in pywebview creds wrong and repeat process from AP creations an QR code scan :::
-send activation -  display DONE
-pywebview and code stops 
-stop main
+*Last updated: [Current Date]*
