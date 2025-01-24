@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "server/Server.md",
+                "file": "docs/TODO.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Server"
+              "title": "TODO"
             }
           }
         ]
@@ -164,16 +164,25 @@
   },
   "active": "e4fa89834db71c54",
   "lastOpenFiles": [
+    "tests/ap/test_check_connection.sh",
+    "tests/ap/test_stop_ap.sh",
+    "tests/ap/test_utils.sh",
+    "tests/ap/test_setup_ap.sh",
+    "tests/ap",
+    "tests",
+    "ap/static/bluetooth_qr.png",
+    "ap/static",
+    "docs/ENHANCEMENTS.md",
     "docs/TODO.md",
-    "ui_manager/UI Manager.md",
     "README.md",
+    "server/Server.md",
+    "ui_manager/UI Manager.md",
     "docs/README.md",
     "docs/API Documentation.md",
     "docs/Development Guide.md",
     "docs/System Architecture.md",
     "docs/Troubleshooting Guide.md",
     "docs",
-    "server/Server.md",
     "scripts/Scripts.md",
     "config/Config.md",
     "Scripts.md",
@@ -184,7 +193,6 @@
     "Development Guide.md",
     "System Architecture.md",
     "Troubleshooting Guide.md",
-    "web_qr.png",
-    "ap/static/bluetooth_qr.png"
+    "web_qr.png"
   ]
 }
