@@ -1,92 +1,205 @@
-import subprocess
+#!/usr/bin/env python3
+"""
+WiFi Connection Manager for Raspberry Pi Screen
+
+This script manages WiFi connections on the Raspberry Pi, including:
+- Connecting to specified WiFi networks
+- Managing network configurations
+- Handling connection retries and failures
+- Backing up and restoring network settings
+"""
+
+import os
+import sys
 import time
+import argparse
+import subprocess
+from typing import Optional, Tuple
 
-def connect_wifi(ssid, password, timeout=30):
+from utils import (
+    setup_logging,
+    load_config,
+    backup_file,
+    restore_file,
+    validate_wifi_credentials,
+    ConfigurationError
+)
+
+# Initialize logging
+logger = setup_logging('connect_wifi')
+
+class WiFiConnectionError(Exception):
+    """Exception raised for WiFi connection failures."""
+    pass
+
+def parse_arguments() -> argparse.Namespace:
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description='Connect to a WiFi network')
+    parser.add_argument('--ssid', help='WiFi network name')
+    parser.add_argument('--password', help='WiFi password')
+    parser.add_argument('--country', help='WiFi country code')
+    parser.add_argument('--config', help='Use saved configuration')
+    parser.add_argument('--timeout', type=int, default=30,
+                       help='Connection timeout in seconds')
+    return parser.parse_args()
+
+def load_wifi_config(config_name: str) -> Tuple[str, str, str]:
     """
-    Connect to a Wi-Fi network using wpa_supplicant and track connection status.
-
-    Args:
-        ssid (str): Wi-Fi network name.
-        password (str): Wi-Fi password.
-        timeout (int): Maximum time (in seconds) to wait for connection.
-
-    Returns:
-        bool: True if connected successfully, False otherwise.
-    """
-    try:
-        # Create wpa_supplicant.conf file
-        config = (
-            f'ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n'
-            f'update_config=1\n'
-            f'country=US\n'
-            f'network={{\n'
-            f'    ssid="{ssid}"\n'
-            f'    psk="{password}"\n'
-            f'    key_mgmt=WPA-PSK\n'
-            f'}}\n'
-        )
-        
-        with open('/etc/wpa_supplicant/wpa_supplicant.conf', 'w') as f:
-            f.write(config)
-        
-        print("Wi-Fi configuration written.")
-        
-        # Restart wireless interface
-        print("Restarting wireless interface...")
-        subprocess.run(['sudo', 'ifconfig', 'wlan0', 'down'], check=True)
-        time.sleep(1)
-        subprocess.run(['sudo', 'ifconfig', 'wlan0', 'up'], check=True)
-        time.sleep(2)
-        
-        # Reconfigure wireless network
-        print("Reconfiguring Wi-Fi...")
-        subprocess.run(['sudo', 'wpa_cli', '-i', 'wlan0', 'reconfigure'], check=True)
-        
-        # Wait for the connection to establish
-        print("Waiting for connection...")
-        start_time = time.time()
-        while time.time() - start_time < timeout:
-            result = subprocess.run(['iwgetid'], capture_output=True, text=True)
-            if ssid in result.stdout:
-                print(f"Successfully connected to {ssid}")
-                return True
-            time.sleep(2)  # Wait before checking again
-        
-        print(f"Failed to connect to {ssid}. Check credentials or signal strength.")
-        return False
+    Load WiFi configuration from config file.
     
-    except subprocess.CalledProcessError as e:
-        print(f"Command failed: {e}")
-        return False
-    except Exception as e:
-        print(f"Error connecting to Wi-Fi: {e}")
-        return False
-
-def reset_dns():
-    """Reset DNS configuration to use Google's public DNS servers."""
+    Args:
+        config_name: Name of the configuration to load
+        
+    Returns:
+        Tuple of (ssid, password, country)
+        
+    Raises:
+        ConfigurationError: If configuration is invalid
+    """
     try:
-        # First remove immutable attribute if present
-        subprocess.run(['sudo', 'chattr', '-i', '/etc/resolv.conf'], check=False)
+        config = load_config('wifi_networks')
+        network = config.get(config_name)
+        if not network:
+            raise ConfigurationError(f"Network '{config_name}' not found in configuration")
         
-        # Write new DNS configuration
-        with open('/etc/resolv.conf', 'w') as resolv_file:
-            resolv_file.write("nameserver 8.8.8.8\n")
-            resolv_file.write("nameserver 8.8.4.4\n")
-        
-        # Make file immutable to prevent overwriting
-        subprocess.run(['sudo', 'chattr', '+i', '/etc/resolv.conf'], check=False)
-        print("DNS configuration reset successfully")
-        return True
+        return (
+            network.get('ssid', ''),
+            network.get('password', ''),
+            network.get('country', 'US')
+        )
     except Exception as e:
-        print(f"Failed to reset DNS configuration: {e}")
-        return False
+        raise ConfigurationError(f"Failed to load WiFi configuration: {str(e)}")
 
-if __name__ == "__main__":
-    # Example usage
-    WIFI_SSID = "Vodafone-AAB4"
-    WIFI_PASSWORD = "RxymGnMT9p3LzPzP"
-    if connect_wifi(WIFI_SSID, WIFI_PASSWORD):
-        #reset_dns()
-        print(f"Connected to {WIFI_SSID}")
-    else:
-        print(f"Failed to connect to {WIFI_SSID}")
+def backup_network_config() -> None:
+    """Backup network configuration files."""
+    try:
+        logger.info("Backing up network configuration files")
+        backup_file('/etc/wpa_supplicant/wpa_supplicant.conf')
+        backup_file('/etc/dhcpcd.conf')
+    except IOError as e:
+        logger.error(f"Failed to backup network configuration: {str(e)}")
+        raise
+
+def restore_network_config() -> None:
+    """Restore network configuration files from backup."""
+    try:
+        logger.info("Restoring network configuration files")
+        restore_file('/etc/wpa_supplicant/wpa_supplicant.conf.backup',
+                    '/etc/wpa_supplicant/wpa_supplicant.conf')
+        restore_file('/etc/dhcpcd.conf.backup',
+                    '/etc/dhcpcd.conf')
+    except IOError as e:
+        logger.error(f"Failed to restore network configuration: {str(e)}")
+        raise
+
+def configure_wifi(ssid: str, password: str, country: str) -> None:
+    """
+    Configure WiFi settings.
+    
+    Args:
+        ssid: Network name
+        password: Network password
+        country: Country code
+        
+    Raises:
+        ConfigurationError: If configuration fails
+    """
+    try:
+        # Validate credentials
+        if not validate_wifi_credentials(ssid, password):
+            raise ConfigurationError("Invalid WiFi credentials")
+            
+        # Create wpa_supplicant configuration
+        config = [
+            'ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev',
+            'update_config=1',
+            f'country={country}',
+            'network={',
+            f'    ssid="{ssid}"',
+            '    scan_ssid=1',
+            f'    psk="{password}"' if password else '    key_mgmt=NONE',
+            '    key_mgmt=WPA-PSK',
+            '}'
+        ]
+        
+        # Write configuration
+        with open('/etc/wpa_supplicant/wpa_supplicant.conf', 'w') as f:
+            f.write('\n'.join(config))
+            
+        logger.info("WiFi configuration updated successfully")
+    except Exception as e:
+        raise ConfigurationError(f"Failed to configure WiFi: {str(e)}")
+
+def connect_with_retry(interface: str, timeout: int) -> None:
+    """
+    Attempt to connect to WiFi with retry mechanism.
+    
+    Args:
+        interface: Network interface name
+        timeout: Connection timeout in seconds
+        
+    Raises:
+        WiFiConnectionError: If connection fails after retries
+    """
+    logger.info(f"Attempting to connect to WiFi on {interface}")
+    
+    # Restart networking services
+    try:
+        subprocess.run(['wpa_cli', '-i', interface, 'reconfigure'],
+                      check=True, capture_output=True)
+        subprocess.run(['systemctl', 'restart', 'dhcpcd'],
+                      check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        raise WiFiConnectionError(f"Failed to restart networking services: {str(e)}")
+    
+    # Wait for connection
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            result = subprocess.run(['iwgetid', interface],
+                                  capture_output=True, text=True)
+            if result.returncode == 0:
+                logger.info("Successfully connected to WiFi")
+                return
+        except subprocess.CalledProcessError:
+            pass
+        
+        time.sleep(1)
+    
+    raise WiFiConnectionError(f"Failed to connect within {timeout} seconds")
+
+def main() -> None:
+    """Main function."""
+    try:
+        # Parse arguments
+        args = parse_arguments()
+        
+        # Load configuration if specified
+        if args.config:
+            ssid, password, country = load_wifi_config(args.config)
+        else:
+            ssid = args.ssid
+            password = args.password
+            country = args.country or os.getenv('WIFI_COUNTRY', 'US')
+        
+        if not ssid:
+            raise ConfigurationError("SSID is required")
+            
+        # Backup existing configuration
+        backup_network_config()
+        
+        try:
+            # Configure and connect
+            configure_wifi(ssid, password, country)
+            connect_with_retry('wlan0', args.timeout)
+        except Exception as e:
+            logger.error(f"Connection failed: {str(e)}")
+            restore_network_config()
+            raise
+            
+    except Exception as e:
+        logger.error(f"Error: {str(e)}")
+        sys.exit(1)
+
+if __name__ == '__main__':
+    main()

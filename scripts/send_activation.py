@@ -1,211 +1,259 @@
-import subprocess
-import re
-import requests
+#!/usr/bin/env python3
+"""
+Activation and Metrics Manager for Raspberry Pi Screen
+
+This script handles device activation and metrics reporting, including:
+- Device registration and activation
+- System metrics collection and reporting
+- Network health monitoring
+- Error handling and retry mechanisms
+"""
+
+import os
+import sys
+import time
+import json
 import uuid
 import socket
+import argparse
+from typing import Dict, Any, Optional
 from datetime import datetime
-from typing import Dict, Any
-from dotenv import load_dotenv
-import os
 
-# Load environment variables
-load_dotenv()
+from utils import (
+    setup_logging,
+    load_config,
+    create_http_session,
+    get_system_metrics,
+    ConfigurationError,
+    NetworkError
+)
 
-# Constants
-SERVER_URL = os.getenv("SERVER_URL", "http://localhost:5001")
-METRICS_ENDPOINT = f"{SERVER_URL}/metrics"
+# Initialize logging
+logger = setup_logging('send_activation')
 
-# ANSI Colors
-class Colors:
-    HEADER = '\033[95m'
-    BLUE = '\033[94m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
+class ActivationError(Exception):
+    """Exception raised for activation-related failures."""
+    pass
 
-def format_section(title: str) -> str:
-    return f"\n{Colors.HEADER}{Colors.BOLD}=== {title} ==={Colors.ENDC}"
+def parse_arguments() -> argparse.Namespace:
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description='Send device activation and metrics')
+    parser.add_argument('--config', default='activation',
+                       help='Configuration profile to use')
+    parser.add_argument('--device-id',
+                       help='Override device ID from configuration')
+    parser.add_argument('--retry', type=int, default=3,
+                       help='Number of retry attempts')
+    return parser.parse_args()
 
-def format_value(label: str, value: str) -> str:
-    return f"{Colors.BLUE}{label}:{Colors.ENDC} {Colors.GREEN}{value}{Colors.ENDC}"
-
-def get_cpu_usage() -> str:
+def load_activation_config(profile: str = 'activation') -> Dict[str, Any]:
+    """
+    Load activation configuration.
+    
+    Args:
+        profile: Configuration profile name
+        
+    Returns:
+        Dictionary containing activation configuration
+        
+    Raises:
+        ConfigurationError: If configuration is invalid
+    """
     try:
-        cmd = "top -bn1 | grep '%Cpu' | awk '{print $2}'"
-        return subprocess.check_output(cmd, shell=True, universal_newlines=True).strip() + "%"
-    except:
-        return "Unknown"
+        config = load_config(profile)
+        required_keys = ['api_url', 'api_key']
+        missing_keys = [key for key in required_keys if key not in config]
+        if missing_keys:
+            raise ConfigurationError(
+                f"Missing required configuration keys: {', '.join(missing_keys)}"
+            )
+        return config
+    except Exception as e:
+        raise ConfigurationError(f"Failed to load activation configuration: {str(e)}")
 
-def get_display_info() -> Dict[str, Any]:
+def get_device_id() -> str:
+    """
+    Get or generate a unique device ID.
+    
+    Returns:
+        Device ID string
+    """
+    id_file = os.path.join(os.path.dirname(__file__), '.device_id')
     try:
-        xrandr_output = subprocess.check_output(['xrandr'], universal_newlines=True)
-        connected_display = re.search(r'(\w+) connected (\d+x\d+)', xrandr_output)
-        if connected_display:
-            return {
-                "status": "Connected",
-                "resolution": connected_display.group(2)
-            }
-        return {"status": "Disconnected", "resolution": "None"}
-    except Exception:
-        return {"status": "Unknown", "resolution": "Unknown"}
-
-def get_power_info() -> Dict[str, str]:
-    try:
-        voltage = subprocess.check_output(['vcgencmd', 'measure_volts', 'core'], universal_newlines=True).strip()
-        throttled = subprocess.check_output(['vcgencmd', 'get_throttled'], universal_newlines=True).strip()
-        return {"coreVoltage": voltage.replace('volt=', ''), "throttling": throttled}
-    except Exception:
-        return {"coreVoltage": "Unknown", "throttling": "Unknown"}
-
-def get_wifi_info() -> Dict[str, str]:
-    try:
-        iwconfig_output = subprocess.check_output(['iwconfig'], universal_newlines=True)
-        essid = re.search(r'ESSID:"([^"]+)"', iwconfig_output)
-        signal_level = re.search(r'Signal level=(-?\d+ dBm)', iwconfig_output)
-        return {
-            "network": essid.group(1) if essid else "Unknown",
-            "signalStrength": signal_level.group(1) if signal_level else "Unknown"
-        }
-    except Exception:
-        return {"network": "Unknown", "signalStrength": "Unknown"}
-
-def get_system_info() -> Dict[str, Any]:
-    try:
-        temp = subprocess.check_output(['vcgencmd', 'measure_temp'], universal_newlines=True).strip()
-        mem = subprocess.check_output(['free', '-h'], shell=True, universal_newlines=True).split('\n')[1].split()
-        cpu_usage = get_cpu_usage()
-        disk = subprocess.check_output(['df', '-h', '/'], universal_newlines=True).split('\n')[1].split()
-        return {
-            "cpuTemperature": float(temp.replace('temp=', '').replace('C', '').strip()),
-            "cpuUsage": float(cpu_usage.replace('%', '').strip()),
-            "memory": {
-                "total": mem[1],
-                "used": mem[2],
-                "free": mem[3]
-            },
-            "disk": {
-                "total": disk[1],
-                "used": disk[2],
-                "free": disk[3],
-                "usage": float(disk[4].replace('%', ''))
-            }
-        }
-    except Exception:
-        return {
-            "cpuTemperature": "Unknown",
-            "cpuUsage": "Unknown",
-            "memory": {"total": "Unknown", "used": "Unknown", "free": "Unknown"},
-            "disk": {"total": "Unknown", "used": "Unknown", "free": "Unknown", "usage": "Unknown"}
-        }
+        if os.path.exists(id_file):
+            with open(id_file, 'r') as f:
+                return f.read().strip()
+        
+        # Generate new device ID
+        device_id = str(uuid.uuid4())
+        with open(id_file, 'w') as f:
+            f.write(device_id)
+        return device_id
+    except Exception as e:
+        logger.warning(f"Failed to persist device ID: {str(e)}")
+        return str(uuid.uuid4())
 
 def get_network_info() -> Dict[str, Any]:
-    try:
-        ip_address = subprocess.check_output(['hostname', '-I'], universal_newlines=True).strip()
-        return {"ipAddress": ip_address}
-    except Exception:
-        return {"ipAddress": "Unknown"}
-
-def gather_metrics() -> Dict[str, Any]:
-    return {
-        "display": get_display_info(),
-        "power": get_power_info(),
-        "wifi": get_wifi_info(),
-        "system": get_system_info(),
-        "network": get_network_info()
+    """
+    Collect network information.
+    
+    Returns:
+        Dictionary containing network metrics
+    """
+    info = {
+        'hostname': socket.gethostname(),
+        'interfaces': {}
     }
-
-def send_metrics_to_server(metrics: Dict[str, Any]):
+    
     try:
-        payload = {
-            "hoster": "Unknown",  # Placeholder
-            "location": "Unknown",  # Placeholder
-            "address": {
-                "street": "Unknown",
-                "streetNumber": "Unknown",
-                "postalCode": "Unknown",
-                "city": "Unknown",
-                "country": "Unknown",
-                "timezone": "Europe/Berlin"
-            },
-            "images": [],
-            "isActive": False,
-            "isConnected": True,
-            "locationType": "Normal",
-            "trafficType": "Low",
-            "metrics": metrics
+        # Get IP addresses for all interfaces
+        for interface in os.listdir('/sys/class/net/'):
+            try:
+                with open(f'/sys/class/net/{interface}/address', 'r') as f:
+                    mac = f.read().strip()
+                info['interfaces'][interface] = {
+                    'mac_address': mac,
+                    'ip_address': None
+                }
+                
+                # Get IP address if interface is up
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                ip = socket.inet_ntoa(
+                    socket.inet_aton('0.0.0.0') |
+                    int.from_bytes(
+                        socket.inet_aton(
+                            socket.gethostbyname(socket.gethostname())
+                        ),
+                        'big'
+                    ).to_bytes(4, 'big')
+                )
+                info['interfaces'][interface]['ip_address'] = ip
+            except Exception as e:
+                logger.debug(f"Failed to get info for interface {interface}: {str(e)}")
+    except Exception as e:
+        logger.warning(f"Failed to collect network information: {str(e)}")
+    
+    return info
+
+def collect_metrics() -> Dict[str, Any]:
+    """
+    Collect system metrics and information.
+    
+    Returns:
+        Dictionary containing system metrics
+    """
+    metrics = get_system_metrics()
+    metrics.update({
+        'timestamp': datetime.utcnow().isoformat(),
+        'network': get_network_info()
+    })
+    return metrics
+
+def send_metrics(
+    url: str,
+    api_key: str,
+    device_id: str,
+    metrics: Dict[str, Any],
+    timeout: int = 30
+) -> None:
+    """
+    Send metrics to the server.
+    
+    Args:
+        url: API endpoint URL
+        api_key: API authentication key
+        device_id: Device identifier
+        metrics: Metrics data to send
+        timeout: Request timeout in seconds
+        
+    Raises:
+        NetworkError: If sending metrics fails
+    """
+    try:
+        session = create_http_session()
+        headers = {
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json',
+            'User-Agent': f'RaspberryPiScreen/{device_id}'
         }
-
-        response = requests.post(METRICS_ENDPOINT, json=payload, timeout=10)
-
-        if response.status_code == 201:
-            print("Metrics sent successfully!")
-            print("Response:", response.json())
-        else:
-            print(f"Failed to send metrics: {response.status_code}")
-            print("Response:", response.text)
-    except requests.exceptions.RequestException as e:
-        print(f"Error sending metrics: {str(e)}")
-
-def main():
-    client = ActivationClient(server_url=SERVER_URL)
-    success, result = client.send_activation_request()
-
-    if success:
-        print("Device activation successful!")
-        print(f"Server response: {result}")
-        metrics = gather_metrics()
-        send_metrics_to_server(metrics)
-    else:
-        print(f"Activation failed: {result}")
-
-class ActivationClient:
-    def __init__(self, server_url):
-        self.server_url = server_url
-        self.device_id = self._get_device_id()
-
-    def _get_device_id(self):
-        mac = ':'.join(['{:02x}'.format((uuid.getnode() >> elements) & 0xff)
-                        for elements in range(0, 2 * 6, 2)][::-1])
-        return mac
-
-    def send_activation_request(self):
-        try:
-            payload = {
-                'device_id': self.device_id,
-                'timestamp': datetime.now().isoformat(),
-                'hostname': socket.gethostname()
-            }
-
-            response = requests.post(
-                f"{self.server_url}/api/screens/create",
-                json=payload,
-                timeout=10
+        
+        payload = {
+            'device_id': device_id,
+            'metrics': metrics
+        }
+        
+        response = session.post(
+            url,
+            headers=headers,
+            json=payload,
+            timeout=timeout
+        )
+        
+        if response.status_code != 200:
+            raise NetworkError(
+                f"Failed to send metrics: {response.status_code} - {response.text}"
             )
+            
+        logger.info("Successfully sent metrics to server")
+        
+    except Exception as e:
+        raise NetworkError(f"Failed to send metrics: {str(e)}")
 
-            if response.status_code == 201:
-                return True, response.json()
+def activate_device(
+    config: Dict[str, Any],
+    device_id: str,
+    retry_count: int = 3
+) -> None:
+    """
+    Activate device and send initial metrics.
+    
+    Args:
+        config: Activation configuration
+        device_id: Device identifier
+        retry_count: Number of retry attempts
+        
+    Raises:
+        ActivationError: If activation fails after all retries
+    """
+    metrics = collect_metrics()
+    
+    for attempt in range(retry_count):
+        try:
+            send_metrics(
+                config['api_url'],
+                config['api_key'],
+                device_id,
+                metrics
+            )
+            return
+            
+        except Exception as e:
+            logger.warning(f"Activation attempt {attempt + 1} failed: {str(e)}")
+            if attempt < retry_count - 1:
+                time.sleep(2 ** attempt)  # Exponential backoff
             else:
-                return False, f"Server returned status code: {response.status_code}"
+                raise ActivationError(
+                    f"Device activation failed after {retry_count} attempts"
+                )
 
-        except requests.exceptions.RequestException as e:
-            return False, f"Connection error: {str(e)}"
+def main() -> None:
+    """Main function."""
+    try:
+        # Parse arguments
+        args = parse_arguments()
+        
+        # Load configuration
+        config = load_activation_config(args.config)
+        
+        # Get or use provided device ID
+        device_id = args.device_id or get_device_id()
+        
+        # Activate device and send metrics
+        activate_device(config, device_id, args.retry)
+        
+    except Exception as e:
+        logger.error(f"Error: {str(e)}")
+        sys.exit(1)
 
-if __name__ == "__main__":
-    # Load environment variables from .env
-    load_dotenv()
-
-    # Retrieve the server URL from the .env file
-    SERVER_URL = os.getenv("SERVER_URL", "http://localhost:5001")
-
-    client = ActivationClient(server_url=SERVER_URL)
-    success, result = client.send_activation_request()
-
-    if success:
-        print("Device activation successful!")
-        print(f"Server response: {result}")
-        metrics = gather_metrics()
-        send_metrics_to_server(metrics)
-    else:
-        print(f"Activation failed: {result}")
+if __name__ == '__main__':
+    main()

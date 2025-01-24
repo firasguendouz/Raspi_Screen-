@@ -1,4 +1,181 @@
-# Scripts Documentation
+# Raspberry Pi Screen Management Scripts
+
+This directory contains Python scripts for managing the Raspberry Pi screen display system.
+
+## Overview
+
+The scripts provide functionality for:
+- WiFi connection management
+- Device activation and metrics reporting
+- URL streaming to display
+- System monitoring and health checks
+
+## Installation
+
+1. Install Python dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+2. Copy configuration files:
+```bash
+sudo mkdir -p /etc/raspi-screen
+sudo cp config/scripts.json /etc/raspi-screen/
+```
+
+3. Set up environment variables:
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+## Scripts
+
+### connect_wifi.py
+Manages WiFi connections with robust error handling and retry mechanisms.
+
+Usage:
+```bash
+python connect_wifi.py --ssid <network_name> --password <network_password>
+python connect_wifi.py --config default  # Use configuration from scripts.json
+```
+
+Options:
+- `--ssid`: WiFi network name
+- `--password`: WiFi password
+- `--country`: WiFi country code (default: US)
+- `--config`: Use saved configuration profile
+- `--timeout`: Connection timeout in seconds (default: 30)
+
+### send_activation.py
+Handles device activation and metrics reporting.
+
+Usage:
+```bash
+python send_activation.py [--config <profile>] [--device-id <id>]
+```
+
+Options:
+- `--config`: Configuration profile to use (default: activation)
+- `--device-id`: Override device ID from configuration
+- `--retry`: Number of retry attempts (default: 3)
+
+Metrics collected:
+- CPU usage and temperature
+- Memory utilization
+- Disk usage
+- Network information
+- Display status
+- Power information
+
+### stream_url.py
+Manages URL streaming to the display with fallback content support.
+
+Usage:
+```bash
+python stream_url.py <url> [--fallback <url>] [--timeout <seconds>]
+```
+
+Options:
+- `--fallback`: Fallback URL or local content
+- `--timeout`: Connection timeout in seconds (default: 30)
+- `--retry`: Number of retry attempts (default: 3)
+
+## Configuration
+
+### Environment Variables
+Create a `.env` file based on `.env.example` with your settings:
+- API configuration
+- WiFi credentials
+- Logging settings
+- Display preferences
+- System paths
+
+### JSON Configuration
+The `scripts.json` file contains structured configuration:
+- Activation settings
+- WiFi network profiles
+- Display parameters
+- Logging configuration
+
+## Logging
+
+Logs are stored in `/var/log/raspi_screen/` with the following files:
+- `connect_wifi.log`: WiFi connection events
+- `send_activation.log`: Activation and metrics events
+- `stream_url.log`: URL streaming events
+
+Log rotation is configured to maintain 5 backup files of 1MB each.
+
+## Error Handling
+
+All scripts implement:
+- Exponential backoff for retries
+- Detailed error logging
+- Fallback mechanisms
+- Configuration validation
+- Network error recovery
+
+## Security
+
+The scripts implement several security measures:
+- Environment variable based secrets
+- API key authentication
+- Input validation
+- Secure file permissions
+- Backup and restore functionality
+
+## Development
+
+### Adding New Features
+1. Update `utils.py` with shared functionality
+2. Add configuration to `scripts.json`
+3. Update environment variables
+4. Add logging statements
+5. Implement error handling
+6. Update documentation
+
+### Testing
+Run tests using pytest:
+```bash
+pytest tests/
+```
+
+### Code Style
+Follow PEP 8 guidelines and use type hints:
+```bash
+pylint scripts/*.py
+mypy scripts/
+```
+
+## Troubleshooting
+
+Common issues and solutions:
+
+1. WiFi Connection Failures
+   - Check credentials in configuration
+   - Verify network availability
+   - Check system logs
+
+2. Activation Errors
+   - Verify API key and URL
+   - Check network connectivity
+   - Review activation logs
+
+3. Display Issues
+   - Check URL availability
+   - Verify display connection
+   - Check fallback content
+
+## Future Enhancements
+
+Planned improvements:
+1. Multi-language support
+2. Advanced security features
+3. Web-based configuration
+4. Enhanced monitoring
+5. Automated testing
+6. Performance optimization
 
 ## 🔍 Overview
 
