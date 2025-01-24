@@ -3,89 +3,110 @@
 # Enhanced Script to initialize and stabilize Access Point mode
 # Must be run with sudo privileges
 
+# Source utility functions
+source "$(dirname "$0")/utils.sh"
+
+# Configuration
+readonly CONFIG_DIR="../config"
+readonly REQUIRED_SERVICES=("hostapd" "dnsmasq" "dhcpcd")
+readonly LOG_FILE="/var/log/ap_setup.log"
+
 # Test mode flag
 TEST_MODE=0
 if [[ "$1" == "--test-mode" ]]; then
     TEST_MODE=1
+    log_info "Running in test mode"
 fi
 
-# Check if script is run as root
-if [[ $EUID -ne 0 ]]; then
-    echo "[ERROR] This script must be run as root (sudo). Exiting."
-    exit 1
-fi
+# Validate root privileges
+check_root
 
-# Helper function for logging
-log_message() {
-    echo "[INFO] $1"
+# Function to stop services
+stop_services() {
+    log_info "Stopping interfering services..."
+    if [[ $TEST_MODE -eq 0 ]]; then
+        for service in wpa_supplicant "${REQUIRED_SERVICES[@]}"; do
+            systemctl stop "$service"
+            validate_cmd "stop $service service" $?
+        done
+    fi
 }
 
-# Stop interfering services
-log_message "Stopping interfering services..."
-if [[ $TEST_MODE -eq 0 ]]; then
-    systemctl stop wpa_supplicant
-    systemctl stop hostapd
-    systemctl stop dnsmasq
-fi
+# Function to copy and validate configurations
+setup_configurations() {
+    log_info "Setting up configuration files..."
+    
+    # Copy configuration files
+    copy_config "$CONFIG_DIR/dhcpcd.conf" "/etc/dhcpcd.conf"
+    copy_config "$CONFIG_DIR/hostapd.conf" "/etc/hostapd/hostapd.conf"
+    copy_config "$CONFIG_DIR/dnsmasq.conf" "/etc/dnsmasq.conf"
+    
+    # Configure hostapd daemon
+    log_debug "Configuring hostapd daemon..."
+    sed -i 's|#DAEMON_CONF=""|DAEMON_CONF="/etc/hostapd/hostapd.conf"|' /etc/default/hostapd
+    validate_cmd "configure hostapd daemon" $?
+}
 
-# Copy configuration files
-log_message "Copying configuration files..."
-cp ../config/dhcpcd.conf /etc/dhcpcd.conf
-cp ../config/hostapd.conf /etc/hostapd/hostapd.conf
-cp ../config/dnsmasq.conf /etc/dnsmasq.conf
+# Function to configure networking
+setup_networking() {
+    log_info "Configuring network settings..."
+    
+    # Enable IP forwarding
+    echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/routed-ap.conf
+    if [[ $TEST_MODE -eq 0 ]]; then
+        sysctl -p /etc/sysctl.d/routed-ap.conf
+        validate_cmd "enable IP forwarding" $?
+    fi
+    
+    # Configure firewall rules
+    if [[ $TEST_MODE -eq 0 ]]; then
+        log_debug "Setting up firewall rules..."
+        iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+        validate_cmd "configure firewall rules" $?
+    fi
+}
 
-if [[ $? -ne 0 ]]; then
-    echo "[ERROR] Failed to copy configuration files. Exiting."
-    exit 1
-fi
+# Function to start services
+start_services() {
+    log_info "Starting AP services..."
+    if [[ $TEST_MODE -eq 0 ]]; then
+        systemctl unmask hostapd
+        
+        # Enable and restart services
+        for service in "${REQUIRED_SERVICES[@]}"; do
+            log_debug "Enabling and starting $service..."
+            systemctl enable "$service"
+            systemctl restart "$service"
+            
+            if ! check_service "$service"; then
+                log_error "$service failed to start"
+                return 1
+            fi
+        done
+    fi
+    return 0
+}
 
-# Point hostapd to its configuration file
-sed -i 's|#DAEMON_CONF=""|DAEMON_CONF="/etc/hostapd/hostapd.conf"|' /etc/default/hostapd
+# Main execution
+main() {
+    log_info "Starting Access Point setup..."
+    
+    # Execute setup steps
+    stop_services
+    setup_configurations
+    setup_networking
+    
+    if start_services; then
+        log_info "Access Point setup completed successfully!"
+        log_info "SSID: RaspberryPi_AP"
+        log_info "Password: raspberry"
+        return 0
+    else
+        log_error "Failed to setup Access Point"
+        return 1
+    fi
+}
 
-if [[ $? -ne 0 ]]; then
-    echo "[ERROR] Failed to configure hostapd. Exiting."
-    exit 1
-fi
-
-# Enable IP forwarding
-log_message "Enabling IP forwarding..."
-echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/routed-ap.conf
-if [[ $TEST_MODE -eq 0 ]]; then
-    sysctl -p /etc/sysctl.d/routed-ap.conf
-fi
-
-if [[ $? -ne 0 ]]; then
-    echo "[ERROR] Failed to enable IP forwarding. Exiting."
-    exit 1
-fi
-
-# Configure firewall rules
-log_message "Configuring firewall rules..."
-if [[ $TEST_MODE -eq 0 ]]; then
-    iptables -A INPUT -p tcp --dport 80 -j ACCEPT
-fi
-
-if [[ $? -ne 0 ]]; then
-    echo "[ERROR] Failed to configure firewall rules. Exiting."
-    exit 1
-fi
-
-# Restart services
-log_message "Restarting services..."
-if [[ $TEST_MODE -eq 0 ]]; then
-    systemctl unmask hostapd
-    systemctl enable hostapd
-    systemctl enable dnsmasq
-    systemctl restart dhcpcd
-    systemctl restart hostapd
-    systemctl restart dnsmasq
-fi
-
-if [[ $? -eq 0 ]]; then
-    log_message "Access Point setup completed successfully!"
-    log_message "SSID: RaspberryPi_AP"
-    log_message "Password: raspberry"
-else
-    echo "[ERROR] Failed to restart services. Please check configurations."
-    exit 1
-fi
+# Execute main function
+main
+exit $?
