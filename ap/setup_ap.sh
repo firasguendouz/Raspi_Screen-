@@ -1,10 +1,29 @@
 #!/bin/bash
+#
+# Access Point Setup Script
+# Initializes and configures a WiFi Access Point on a Raspberry Pi.
+#
+# This script performs the following operations:
+# 1. Stops potentially interfering services
+# 2. Configures network settings and IP forwarding
+# 3. Sets up hostapd (access point) and dnsmasq (DHCP server)
+# 4. Starts and validates all required services
+#
+# Dependencies:
+#   - utils.sh (common utility functions)
+#   - hostapd (access point daemon)
+#   - dnsmasq (DHCP and DNS server)
+#   - dhcpcd (DHCP client daemon)
+#
+# Usage:
+#   sudo ./setup_ap.sh [--test-mode]
 
-# Enhanced Script to initialize and stabilize Access Point mode
-# Must be run with sudo privileges
-
-# Source utility functions
+# Source common utility functions
+# shellcheck source=./utils.sh
 source "$(dirname "$0")/utils.sh"
+
+# Initialize environment with command line arguments
+init_environment "$@"
 
 # Configuration
 readonly CONFIG_DIR="../config"
@@ -21,85 +40,116 @@ fi
 # Validate root privileges
 check_root
 
-# Function to stop services
+# Stop interfering network services
+# Returns:
+#   0 on success, 1 on failure
 stop_services() {
     log_info "Stopping interfering services..."
-    if [[ $TEST_MODE -eq 0 ]]; then
-        for service in wpa_supplicant "${REQUIRED_SERVICES[@]}"; do
-            systemctl stop "$service"
-            validate_cmd "stop $service service" $?
-        done
-    fi
+    
+    # Stop wpa_supplicant first to release wireless interface
+    # This prevents conflicts with hostapd
+    stop_service "wpa_supplicant"
+    
+    # Stop AP services in reverse dependency order
+    # This ensures clean shutdown and prevents service conflicts
+    for service in "${REQUIRED_SERVICES[@]}"; do
+        stop_service "$service"
+    done
 }
 
 # Function to copy and validate configurations
+# Creates necessary directories and copies config files
+# Returns:
+#   0 on success, 1 on failure
 setup_configurations() {
     log_info "Setting up configuration files..."
     
-    # Copy configuration files
-    copy_config "$CONFIG_DIR/dhcpcd.conf" "/etc/dhcpcd.conf"
-    copy_config "$CONFIG_DIR/hostapd.conf" "/etc/hostapd/hostapd.conf"
-    copy_config "$CONFIG_DIR/dnsmasq.conf" "/etc/dnsmasq.conf"
+    # Create required directories if they don't exist
+    mkdir -p /etc/hostapd
     
-    # Configure hostapd daemon
+    # Generate configuration files from environment settings
+    log_debug "Generating hostapd configuration..."
+    generate_hostapd_config "/etc/hostapd/hostapd.conf" || return 1
+    
+    log_debug "Generating dnsmasq configuration..."
+    generate_dnsmasq_config "/etc/dnsmasq.conf" || return 1
+    
+    # Configure hostapd daemon to use our configuration
     log_debug "Configuring hostapd daemon..."
     sed -i 's|#DAEMON_CONF=""|DAEMON_CONF="/etc/hostapd/hostapd.conf"|' /etc/default/hostapd
     validate_cmd "configure hostapd daemon" $?
+    
+    # Ensure wireless interface exists and is available
+    validate_interface "$AP_INTERFACE"
 }
 
-# Function to configure networking
+# Configure network settings and firewall rules
+# Enables IP forwarding and sets up basic firewall
+# Returns:
+#   0 on success, 1 on failure
 setup_networking() {
     log_info "Configuring network settings..."
     
-    # Enable IP forwarding
+    # Enable IP forwarding for AP functionality
     echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/routed-ap.conf
-    if [[ $TEST_MODE -eq 0 ]]; then
+    if [[ "$AP_ENV" != "$ENV_TEST" ]]; then
         sysctl -p /etc/sysctl.d/routed-ap.conf
         validate_cmd "enable IP forwarding" $?
-    fi
-    
-    # Configure firewall rules
-    if [[ $TEST_MODE -eq 0 ]]; then
-        log_debug "Setting up firewall rules..."
-        iptables -A INPUT -p tcp --dport 80 -j ACCEPT
-        validate_cmd "configure firewall rules" $?
+        
+        # Configure firewall rules from environment settings
+        configure_firewall || return 1
     fi
 }
 
-# Function to start services
+# Start and verify all required services
+# Ensures services are enabled and running correctly
+# Returns:
+#   0 on success, 1 on failure
 start_services() {
     log_info "Starting AP services..."
-    if [[ $TEST_MODE -eq 0 ]]; then
+    
+    if [[ "$AP_ENV" != "$ENV_TEST" ]]; then
+        # Unmask hostapd if it was masked
+        # This is necessary as hostapd might be masked by default
         systemctl unmask hostapd
         
-        # Enable and restart services
+        # Start services in dependency order
+        # This ensures proper service initialization
         for service in "${REQUIRED_SERVICES[@]}"; do
             log_debug "Enabling and starting $service..."
-            systemctl enable "$service"
-            systemctl restart "$service"
+            enable_service "$service"
+            restart_service "$service"
             
+            # Verify service status after start
             if ! check_service "$service"; then
                 log_error "$service failed to start"
                 return 1
             fi
+            log_debug "$service started successfully"
         done
     fi
     return 0
 }
 
-# Main execution
+# Main execution function
+# Orchestrates the AP setup process
+# Returns:
+#   0 on success, 1 on failure
 main() {
     log_info "Starting Access Point setup..."
+    log_info "Environment: $AP_ENV"
+    log_info "Interface: $AP_INTERFACE"
+    log_info "SSID: $AP_SSID"
     
-    # Execute setup steps
-    stop_services
-    setup_configurations
-    setup_networking
+    # Execute setup steps in sequence
+    stop_services || exit 1
+    setup_configurations || exit 1
+    setup_networking || exit 1
     
     if start_services; then
         log_info "Access Point setup completed successfully!"
-        log_info "SSID: RaspberryPi_AP"
-        log_info "Password: raspberry"
+        log_info "SSID: $AP_SSID"
+        log_info "Password: $AP_PASSPHRASE"
         return 0
     else
         log_error "Failed to setup Access Point"
@@ -107,6 +157,6 @@ main() {
     fi
 }
 
-# Execute main function
+# Execute main function and exit with its status
 main
 exit $?

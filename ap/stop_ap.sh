@@ -1,10 +1,28 @@
 #!/bin/bash
+#
+# Access Point Termination Script
+# Safely stops the AP and restores normal WiFi client mode.
+#
+# This script performs the following operations:
+# 1. Stops and disables AP services
+# 2. Restores original network configuration
+# 3. Enables and starts WiFi client mode
+# 4. Verifies network connectivity
+#
+# Dependencies:
+#   - utils.sh (common utility functions)
+#   - systemd (for service management)
+#   - wpa_supplicant (for WiFi client mode)
+#
+# Usage:
+#   sudo ./stop_ap.sh [--test-mode]
 
-# Script to safely stop Access Point mode and restore normal WiFi
-# Must be run with sudo privileges
-
-# Source utility functions
+# Source common utility functions
+# shellcheck source=./utils.sh
 source "$(dirname "$0")/utils.sh"
+
+# Initialize environment with command line arguments
+init_environment "$@"
 
 # Configuration
 readonly REQUIRED_SERVICES=("hostapd" "dnsmasq")
@@ -20,79 +38,144 @@ fi
 # Validate root privileges
 check_root
 
-# Function to stop AP services
+# Function to stop and disable AP services
+# Stops and disables all AP-related services
+# Processes services in reverse dependency order
+# Returns:
+#   0 on success, 1 on failure
 stop_ap_services() {
     log_info "Stopping AP services..."
     
-    if [[ $TEST_MODE -eq 0 ]]; then
-        for service in "${REQUIRED_SERVICES[@]}"; do
-            log_debug "Stopping $service..."
-            systemctl stop "$service"
-            systemctl disable "$service"
-            validate_cmd "stop and disable $service" $?
-        done
-    fi
+    # Stop and disable services in reverse dependency order
+    # This ensures clean shutdown without dependency conflicts
+    for service in $(echo "${REQUIRED_SERVICES[@]}" | tac -s' '); do
+        log_debug "Stopping and disabling $service..."
+        stop_service "$service"
+        disable_service "$service"
+    done
 }
 
 # Function to restore network configuration
+# Restores original network configuration
+# Restores backups and disables AP-specific settings
+# Returns:
+#   0 on success, 1 on failure
 restore_network_config() {
     log_info "Restoring network configuration..."
     
-    # Restore original configuration files
-    if [[ -f /etc/dhcpcd.conf.backup ]]; then
-        log_debug "Restoring dhcpcd configuration..."
-        copy_config "/etc/dhcpcd.conf.backup" "/etc/dhcpcd.conf"
-    else
-        log_warn "No dhcpcd backup configuration found"
-    fi
+    # Restore original configuration files from backups
+    # Processes core network configuration files
+    for config in dhcpcd.conf dnsmasq.conf "hostapd/hostapd.conf"; do
+        local backup="/etc/${config}.backup"
+        if [[ -f "$backup" ]]; then
+            log_debug "Restoring backup: /etc/$config"
+            copy_config "$backup" "/etc/$config"
+        else
+            log_warn "No backup found for /etc/$config"
+        fi
+    done
     
-    # Disable IP forwarding
+    # Disable IP forwarding for normal client mode
     log_debug "Disabling IP forwarding..."
     echo "net.ipv4.ip_forward=0" > /etc/sysctl.d/routed-ap.conf
-    if [[ $TEST_MODE -eq 0 ]]; then
+    if [[ "$AP_ENV" != "$ENV_TEST" ]]; then
         sysctl -p /etc/sysctl.d/routed-ap.conf
         validate_cmd "disable IP forwarding" $?
     fi
     
-    # Remove firewall rules
-    if [[ $TEST_MODE -eq 0 ]]; then
+    # Remove AP-specific firewall rules
+    if [[ "$AP_ENV" != "$ENV_TEST" ]]; then
         log_debug "Removing firewall rules..."
-        iptables -D INPUT -p tcp --dport 80 -j ACCEPT
-        validate_cmd "remove firewall rules" $?
+        # Suppress errors if rule doesn't exist
+        iptables -D INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || true
+        log_debug "Firewall rules cleaned"
     fi
 }
 
 # Function to start WiFi client mode
+# Configures and enables normal WiFi functionality
+# Returns:
+#   0 on success, 1 on failure
 start_wifi_client() {
     log_info "Starting WiFi client mode..."
     
-    if [[ $TEST_MODE -eq 0 ]]; then
-        # Start wpa_supplicant
-        log_debug "Starting wpa_supplicant..."
-        systemctl start wpa_supplicant
-        validate_cmd "start wpa_supplicant" $?
+    if [[ "$AP_ENV" != "$ENV_TEST" ]]; then
+        # Verify and restore wpa_supplicant configuration
+        if [[ ! -f "/etc/wpa_supplicant/wpa_supplicant.conf" ]]; then
+            log_warn "No wpa_supplicant configuration found"
+            copy_config "$CONFIG_DIR/wpa_supplicant.conf" "/etc/wpa_supplicant/wpa_supplicant.conf"
+        fi
         
-        # Restart networking
+        # Start WiFi client services
+        log_debug "Starting wpa_supplicant..."
+        start_service "wpa_supplicant"
+        
+        # Restart networking to apply changes
         log_debug "Restarting networking services..."
-        systemctl restart dhcpcd
-        validate_cmd "restart networking" $?
+        restart_service "dhcpcd"
+        
+        # Verify wireless interface is operational
+        if ! validate_interface "$AP_INTERFACE"; then
+            log_error "Failed to bring up wireless interface"
+            return 1
+        fi
     fi
+    return 0
 }
 
-# Main execution
+# Function to verify network status
+# Ensures network is properly configured and operational
+# Returns:
+#   0 on success, 1 on failure
+verify_network_status() {
+    log_info "Verifying network status..."
+    
+    if [[ "$AP_ENV" != "$ENV_TEST" ]]; then
+        # Check if interface is in UP state
+        if ! ip link show "$AP_INTERFACE" | grep -q "UP"; then
+            log_error "Interface $AP_INTERFACE is not up"
+            return 1
+        fi
+        
+        # Wait for IP address assignment
+        # This may take time depending on network conditions
+        local timeout=30
+        local counter=0
+        while ! ip addr show "$AP_INTERFACE" | grep -q "inet "; do
+            sleep 1
+            ((counter++))
+            if [[ $counter -ge $timeout ]]; then
+                log_error "Timeout waiting for IP address"
+                return 1
+            fi
+        done
+        
+        log_info "Network interface configured successfully"
+    fi
+    return 0
+}
+
+# Main execution function
+# Orchestrates the AP shutdown process
+# Returns:
+#   0 on success, 1 on failure
 main() {
     log_info "Starting AP shutdown procedure..."
+    log_info "Environment: $AP_ENV"
+    log_info "Interface: $AP_INTERFACE"
     
-    # Execute shutdown steps
-    stop_ap_services
-    restore_network_config
-    start_wifi_client
+    # Execute shutdown steps in sequence
+    # Each step must succeed before proceeding
+    stop_ap_services || exit 1
+    restore_network_config || exit 1
+    start_wifi_client || exit 1
+    verify_network_status || exit 1
     
     log_info "Access Point shutdown completed successfully"
     log_info "System restored to WiFi client mode"
     return 0
 }
 
-# Execute main function
+# Execute main function and exit with its status
 main
 exit $?
