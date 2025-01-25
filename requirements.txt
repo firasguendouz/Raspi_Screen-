@@ -1,34 +1,41 @@
-# Web Framework
+# Web Framework and Extensions
 Flask>=2.0.0
+Flask-Babel>=2.0.0
+Werkzeug>=2.0.0
 
-# Networking
+# Networking and API
 requests>=2.26.0
+websockets>=10.0
+netifaces>=0.11.0
+urllib3>=1.26.7
 
 # QR Code Generation
-qrcode>=7.3
-pillow>=8.0.0  # Required for QR code image generation
+qrcode[pil]>=7.3
+Pillow>=8.0.0
 
 # System and Hardware
-RPi.GPIO>=0.7.0  # Raspberry Pi GPIO
-netifaces>=0.11.0  # Network interface handling
+RPi.GPIO>=0.7.0
+psutil>=5.8.0
+pywebview>=3.7.0
+colorama>=0.4.4
 
-# Web Browser Control
-selenium>=4.0.0
-
-# Development Tools
-python-dotenv>=0.19.0
-pytest>=6.2.5  # For testing
-
-# GUI and WebView (pywebview dependencies)
-pywebview>=5.0.0
-pycairo>=1.20.0
+# GUI Dependencies
 PyGObject>=3.42.0
-qtpy>=1.11.0  # Optional, for QT GUI backend
+pycairo>=1.20.0
+qtpy>=1.11.0
 
-# Optional Dependencies
-bottle>=0.13.0  # For lightweight web server (used by pywebview)
-proxy-tools>=0.1.0  # For proxy handling (used by pywebview)
-requests
-flask
-colorama
-qrcode[pil]
+# Development and Testing
+python-dotenv>=0.19.0
+pytest>=6.2.5
+pytest-mock>=3.6.1
+pytest-asyncio>=0.16.0
+
+# Utilities
+validators>=0.18.2
+typing-extensions>=4.0.0
+bottle>=0.13.0
+proxy-tools>=0.1.0
+
+# Documentation
+Sphinx>=4.3.0
+sphinx-rtd-theme>=1.0.0
