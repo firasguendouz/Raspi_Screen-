@@ -90,7 +90,7 @@ def log_request(f):
         return f(*args, **kwargs)
     return decorated_function
 
-@babel.localeselector
+@babel.select_locale
 def get_locale():
     """Determine the best language for the user."""
     # Check URL parameter
