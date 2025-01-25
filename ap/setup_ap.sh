@@ -19,14 +19,13 @@
 #   sudo ./setup_ap.sh [--test-mode]
 
 # Source common utility functions
-# shellcheck source=./utils.sh
-source "$(dirname "$0")/utils.sh"
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "$SCRIPT_DIR/utils.sh"
 
 # Initialize environment with command line arguments
 init_environment "$@"
 
 # Configuration
-readonly REQUIRED_SERVICES=("hostapd" "dnsmasq" "dhcpcd")
 readonly LOG_FILE="/var/log/ap_setup.log"
 
 # Test mode flag

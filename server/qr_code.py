@@ -12,9 +12,6 @@ from typing import Optional, Dict, Any, Union
 from pathlib import Path
 from datetime import datetime, timedelta
 import qrcode
-from qrcode.image.styledpil import StyledPilImage
-from qrcode.image.styles.moduledrawers import RoundedModuleDrawer
-from qrcode.image.styles.colormask import RadialGradiantColorMask
 from PIL import Image
 from .utils import (
     logger,
@@ -145,7 +142,7 @@ def create_styled_qr(
     box_size: int = QR_BOX_SIZE,
     border: int = QR_BORDER
 ) -> Image.Image:
-    """Create a styled QR code with rounded modules.
+    """Create a styled QR code.
 
     Args:
         data: Content to encode in QR code
@@ -173,11 +170,7 @@ def create_styled_qr(
     qr.make(fit=True)
 
     rgb_color = tuple(int(color[i:i+2], 16) for i in (1, 3, 5))
-    return qr.make_image(
-        image_factory=StyledPilImage,
-        module_drawer=RoundedModuleDrawer(),
-        color_mask=RadialGradiantColorMask(back_color=(255, 255, 255), center_color=rgb_color, edge_color=rgb_color)
-    )
+    return qr.make_image(fill_color=rgb_color, back_color="white")
 
 def add_logo(
     qr_image: Image.Image,
