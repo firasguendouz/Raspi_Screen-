@@ -1,18 +1,15 @@
 #!/bin/bash
 #
 # Access Point Termination Script
-# Safely stops the AP and restores normal WiFi client mode.
+# Safely stops the AP while preserving existing WiFi connections.
 #
 # This script performs the following operations:
 # 1. Stops and disables AP services
-# 2. Restores original network configuration
-# 3. Enables and starts WiFi client mode
-# 4. Verifies network connectivity
+# 2. Cleans up AP-specific configurations
 #
 # Dependencies:
 #   - utils.sh (common utility functions)
 #   - systemd (for service management)
-#   - wpa_supplicant (for WiFi client mode)
 #
 # Usage:
 #   sudo ./stop_ap.sh [--test-mode]
@@ -27,13 +24,6 @@ init_environment "$@"
 # Configuration
 readonly REQUIRED_SERVICES=("hostapd" "dnsmasq")
 readonly LOG_FILE="/var/log/ap_stop.log"
-
-# Test mode flag
-TEST_MODE=0
-if [[ "$1" == "--test-mode" ]]; then
-    TEST_MODE=1
-    log_info "Running in test mode"
-fi
 
 # Validate root privileges
 check_root
@@ -55,23 +45,12 @@ stop_ap_services() {
     return 0
 }
 
-# Function to restore network configuration
-# Restores original network settings and removes AP configurations
+# Function to clean up AP configuration
+# Removes AP-specific configurations without affecting client mode
 # Returns:
 #   0 on success, 1 on failure
-restore_network_config() {
-    log_info "Restoring network configuration..."
-    
-    # Restore original configuration files
-    restore_config_files || return 1
-    
-    # Disable IP forwarding for normal client mode
-    log_debug "Disabling IP forwarding..."
-    echo "net.ipv4.ip_forward=0" > /etc/sysctl.d/routed-ap.conf
-    if [[ "$AP_ENV" != "$ENV_TEST" ]]; then
-        sysctl -p /etc/sysctl.d/routed-ap.conf
-        validate_cmd "disable IP forwarding" $?
-    fi
+cleanup_ap_config() {
+    log_info "Cleaning up AP configuration..."
     
     # Remove AP-specific firewall rules
     if [[ "$AP_ENV" != "$ENV_TEST" ]]; then
@@ -80,68 +59,15 @@ restore_network_config() {
         iptables -D INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || true
         log_debug "Firewall rules cleaned"
     fi
-}
-
-# Function to start WiFi client mode
-# Configures and enables normal WiFi functionality
-# Returns:
-#   0 on success, 1 on failure
-start_wifi_client() {
-    log_info "Starting WiFi client mode..."
     
+    # Disable IP forwarding
+    log_debug "Disabling IP forwarding..."
+    echo "net.ipv4.ip_forward=0" > /etc/sysctl.d/routed-ap.conf
     if [[ "$AP_ENV" != "$ENV_TEST" ]]; then
-        # Verify and restore wpa_supplicant configuration
-        if [[ ! -f "/etc/wpa_supplicant/wpa_supplicant.conf" ]]; then
-            log_warn "No wpa_supplicant configuration found"
-            copy_config "$CONFIG_DIR/wpa_supplicant.conf" "/etc/wpa_supplicant/wpa_supplicant.conf"
-        fi
-        
-        # Start WiFi client services
-        log_debug "Starting wpa_supplicant..."
-        start_service "wpa_supplicant"
-        
-        # Restart networking to apply changes
-        log_debug "Restarting networking services..."
-        restart_service "dhcpcd"
-        
-        # Verify wireless interface is operational
-        if ! validate_interface "$AP_INTERFACE"; then
-            log_error "Failed to bring up wireless interface"
-            return 1
-        fi
+        sysctl -p /etc/sysctl.d/routed-ap.conf
+        validate_cmd "disable IP forwarding" $?
     fi
-    return 0
-}
-
-# Function to verify network status
-# Ensures network is properly configured and operational
-# Returns:
-#   0 on success, 1 on failure
-verify_network_status() {
-    log_info "Verifying network status..."
     
-    if [[ "$AP_ENV" != "$ENV_TEST" ]]; then
-        # Check if interface is in UP state
-        if ! ip link show "$AP_INTERFACE" | grep -q "UP"; then
-            log_error "Interface $AP_INTERFACE is not up"
-            return 1
-        fi
-        
-        # Wait for IP address assignment
-        # This may take time depending on network conditions
-        local timeout=30
-        local counter=0
-        while ! ip addr show "$AP_INTERFACE" | grep -q "inet "; do
-            sleep 1
-            ((counter++))
-            if [[ $counter -ge $timeout ]]; then
-                log_error "Timeout waiting for IP address"
-                return 1
-            fi
-        done
-        
-        log_info "Network interface configured successfully"
-    fi
     return 0
 }
 
@@ -155,14 +81,10 @@ main() {
     log_info "Interface: $AP_INTERFACE"
     
     # Execute shutdown steps in sequence
-    # Each step must succeed before proceeding
     stop_ap_services || exit 1
-    restore_network_config || exit 1
-    start_wifi_client || exit 1
-    verify_network_status || exit 1
+    cleanup_ap_config || exit 1
     
     log_info "Access Point shutdown completed successfully"
-    log_info "System restored to WiFi client mode"
     return 0
 }
 
