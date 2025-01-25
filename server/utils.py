@@ -6,7 +6,179 @@ Provides input validation, sanitization, and common helper functions.
 
 import re
 import html
-from typing import Optional
+from typing import Optional, Any, Dict, Union
+import logging
+import ipaddress
+from pathlib import Path
+from functools import wraps
+from datetime import datetime
+import json
+
+# Custom exception classes
+class ValidationError(Exception):
+    """Raised when input validation fails."""
+    pass
+
+class ConfigurationError(Exception):
+    """Raised when configuration is invalid or missing."""
+    pass
+
+class NetworkError(Exception):
+    """Raised when network operations fail."""
+    pass
+
+# Error message templates
+ERROR_MESSAGES = {
+    'invalid_input': 'Input contains invalid characters: {details}',
+    'invalid_length': 'Input length must be between {min_len} and {max_len}',
+    'invalid_ip': 'Invalid IP address format: {ip}',
+    'invalid_url': 'Invalid URL format: {url}',
+    'invalid_color': 'Invalid color format: {color}',
+    'config_not_found': 'Configuration file not found: {path}',
+    'network_unreachable': 'Network is unreachable: {details}'
+}
+
+def setup_logging(
+    name: str,
+    level: str = "INFO",
+    log_file: Optional[str] = None
+) -> logging.Logger:
+    """Configure logging with file and console handlers.
+
+    Args:
+        name: Logger name
+        level: Logging level (default: INFO)
+        log_file: Optional log file path
+
+    Returns:
+        Configured logger instance
+    """
+    logger = logging.getLogger(name)
+    logger.setLevel(getattr(logging, level.upper()))
+
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    # File handler if specified
+    if log_file:
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+    return logger
+
+def validate_input(
+    text: str,
+    min_length: int = 1,
+    max_length: int = 100,
+    pattern: str = r'^[\w\s\-\.@!()]+$'
+) -> str:
+    """Validate and sanitize user input.
+
+    Args:
+        text: Input text to validate
+        min_length: Minimum allowed length
+        max_length: Maximum allowed length
+        pattern: Regex pattern for allowed characters
+
+    Returns:
+        Sanitized input string
+
+    Raises:
+        ValidationError: If input is invalid
+    """
+    if not min_length <= len(text) <= max_length:
+        raise ValidationError(
+            ERROR_MESSAGES['invalid_length'].format(
+                min_len=min_length,
+                max_length=max_length
+            )
+        )
+
+    if not re.match(pattern, text):
+        raise ValidationError(
+            ERROR_MESSAGES['invalid_input'].format(
+                details='Contains invalid characters'
+            )
+        )
+
+    return text.strip()
+
+def validate_ip_address(ip: str) -> bool:
+    """Validate IPv4 or IPv6 address format.
+
+    Args:
+        ip: IP address string
+
+    Returns:
+        True if valid, False otherwise
+    """
+    try:
+        ipaddress.ip_address(ip)
+        return True
+    except ValueError:
+        return False
+
+def validate_color(color: str) -> bool:
+    """Validate hex color code format.
+
+    Args:
+        color: Hex color code (e.g., #FF0000)
+
+    Returns:
+        True if valid, False otherwise
+    """
+    return bool(re.match(r'^#[0-9A-Fa-f]{6}$', color))
+
+def load_config(path: Union[str, Path]) -> Dict[str, Any]:
+    """Load configuration from JSON file.
+
+    Args:
+        path: Path to configuration file
+
+    Returns:
+        Configuration dictionary
+
+    Raises:
+        ConfigurationError: If file not found or invalid
+    """
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        raise ConfigurationError(
+            ERROR_MESSAGES['config_not_found'].format(path=path)
+        )
+    except json.JSONDecodeError as e:
+        raise ConfigurationError(f'Invalid JSON in config file: {e}')
+
+def log_execution_time(logger: logging.Logger):
+    """Decorator to log function execution time.
+
+    Args:
+        logger: Logger instance to use
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            start = datetime.now()
+            result = func(*args, **kwargs)
+            duration = (datetime.now() - start).total_seconds()
+            logger.debug(
+                f'{func.__name__} executed in {duration:.2f} seconds'
+            )
+            return result
+        return wrapper
+    return decorator
+
+# Initialize default logger
+logger = setup_logging(__name__)
 
 def sanitize_input(text: str) -> str:
     """

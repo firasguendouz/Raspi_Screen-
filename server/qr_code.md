@@ -6,20 +6,26 @@
 ![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen)
 
 ## 🔍 Overview
-Module for generating styled QR codes with caching support, custom colors, and logo embedding capabilities. Primarily used for WiFi network configuration.
+Advanced QR code generation module for the Raspberry Pi Screen Management Server. Provides styled QR codes with caching support, custom colors, and logo embedding capabilities. Primarily used for WiFi network configuration.
 
 ## 🔗 Related Documentation
 - [Server Documentation](Server.md)
 - [Utilities Module](utils.md)
 
 ## ⭐ Features
-- Styled QR codes with rounded corners
-- Custom color gradients
-- Logo embedding
-- Caching system with expiration
+- Styled QR codes with rounded modules
+- Custom color support with hex codes
+- Logo embedding with size control
+- Efficient caching system with expiration
 - Multiple QR code types (WiFi, URL)
+- Input validation and error handling
 
-## 📦 Classes
+## 📦 Dependencies
+- `qrcode[pil]>=7.0`: QR code generation
+- `Pillow>=8.0.0`: Image processing
+- Custom utilities for validation
+
+## 🛠️ Classes
 
 ### QRCodeCache
 Manages caching of generated QR codes to improve performance.
@@ -31,6 +37,7 @@ cache.put(data, file_path)
 ```
 
 #### Methods
+- `_ensure_cache_dir()`: Creates cache directory if needed
 - `_load_cache_index()`: Loads cache index from file
 - `_save_cache_index()`: Saves cache index to file
 - `_generate_key(data)`: Generates unique cache key
@@ -38,47 +45,53 @@ cache.put(data, file_path)
 - `put(data, file_path)`: Adds QR code to cache
 - `_cleanup(key)`: Removes expired cache entries
 
-## 🛠️ Functions
+## 🎨 Functions
 
-### create_styled_qr(data: str, color: str = "#000000") -> Image
-Creates a styled QR code with custom colors and rounded modules.
-
+### create_styled_qr()
 ```python
-qr_image = create_styled_qr(
-    data="Hello World",
-    color="#FF0000"
-)
+def create_styled_qr(
+    data: str,
+    color: str = "#000000",
+    version: int = 1,
+    box_size: int = 10,
+    border: int = 4
+) -> Image.Image:
+    """Create a styled QR code with rounded modules."""
 ```
 
 Parameters:
 - `data`: Content to encode
-- `color`: Hex color code for QR code
+- `color`: Hex color code
+- `version`: QR code version
+- `box_size`: Module size in pixels
+- `border`: Border width in modules
 
-### add_logo(qr_image: Image, scale: float = 0.2) -> Image
-Adds logo to center of QR code.
-
+### add_logo()
 ```python
-qr_with_logo = add_logo(
-    qr_image=base_image,
-    scale=0.3
-)
+def add_logo(
+    qr_image: Image.Image,
+    logo_path: str = "static/logo.png",
+    scale: float = 0.2
+) -> Image.Image:
+    """Add logo to center of QR code."""
 ```
 
 Parameters:
 - `qr_image`: Base QR code image
+- `logo_path`: Path to logo file
 - `scale`: Logo size relative to QR code
 
-### generate_wifi_qr(ssid: str, password: str, security: str = "WPA", color: str = "#000000", add_logo_flag: bool = True) -> str
-Generates QR code for WiFi configuration.
-
+### generate_wifi_qr()
 ```python
-qr_path = generate_wifi_qr(
-    ssid="MyNetwork",
-    password="MyPassword",
-    security="WPA",
-    color="#0000FF",
-    add_logo_flag=True
-)
+def generate_wifi_qr(
+    ssid: str,
+    password: str,
+    security: str = "WPA",
+    color: str = "#000000",
+    add_logo_flag: bool = True,
+    cache: Optional[QRCodeCache] = None
+) -> str:
+    """Generate QR code for WiFi configuration."""
 ```
 
 Parameters:
@@ -87,36 +100,19 @@ Parameters:
 - `security`: Security type (WPA/WEP/nopass)
 - `color`: QR code color
 - `add_logo_flag`: Whether to add logo
-
-Returns:
-- Path to generated QR code image
+- `cache`: Optional QR code cache
 
 ## ⚙️ Configuration
 
 ### Constants
 ```python
-CACHE_DIR = "qr_cache"
-LOGO_PATH = "static/logo.png"
 CACHE_DURATION = timedelta(hours=24)
+DEFAULT_LOGO_PATH = "static/logo.png"
+QR_VERSION = 1
+QR_BOX_SIZE = 10
+QR_BORDER = 4
+DEFAULT_COLOR = "#000000"
 ```
-
-### Dependencies
-- `qrcode[pil]>=7.0`: QR code generation
-- `Pillow>=8.0.0`: Image processing
-
-## ⚠️ Error Handling
-
-### Validation Errors
-- Empty SSID
-- Invalid security type
-- Invalid color format
-
-### File Operations
-- Cache directory creation
-- Logo file missing
-- Write permission issues
-
-## 💾 Caching System
 
 ### Cache Structure
 ```
@@ -130,10 +126,44 @@ qr_cache/
 {
     "hash": {
         "created": "2024-01-24T12:00:00",
-        "data": "WIFI:T:WPA;S:MyNetwork;P:MyPassword;;"
+        "data": {
+            "ssid": "MyNetwork",
+            "password": "MyPassword",
+            "security": "WPA",
+            "color": "#000000",
+            "add_logo": true
+        }
     }
 }
 ```
+
+## ⚠️ Error Handling
+
+### Validation
+- SSID format and length
+- Security type validation
+- Color code format
+- Logo file existence
+- Cache directory permissions
+
+### Exceptions
+- `ValidationError`: Input validation failures
+- `ConfigurationError`: Missing or invalid config
+- `IOError`: File operations failures
+
+## 🔍 Performance
+
+### Caching Strategy
+- SHA-256 hashing for cache keys
+- 24-hour cache duration
+- Automatic cleanup of expired entries
+- Memory-efficient index storage
+
+### Image Optimization
+- Optimal QR version selection
+- Efficient image processing
+- Logo size optimization
+- PNG compression
 
 ## 📝 Usage Examples
 
@@ -155,58 +185,25 @@ qr_path = generate_wifi_qr(
 )
 ```
 
-### URL QR Code
+### Custom QR Code
 ```python
-qr_path = generate_url_qr(
-    url="https://example.com",
-    output_file="url_qr.png"
+qr_image = create_styled_qr(
+    data="Custom data",
+    color="#0000FF",
+    version=2
 )
+qr_with_logo = add_logo(qr_image, scale=0.3)
 ```
 
-## 👌 Best Practices
-
-1. **Cache Management**
-   - Regular cache cleanup
-   - Appropriate cache duration
-   - Error handling for cache operations
-
-2. **Image Generation**
-   - Proper error correction level
-   - Optimal image size
-   - Logo scaling considerations
-
-3. **Security**
-   - Input validation (see [Utils Module](utils.md))
-   - Safe file handling
-   - Error logging
-
-## 🔧 Troubleshooting
-
-Common issues and solutions:
-
-1. **QR Code Not Readable**
-   - Increase error correction level
-   - Reduce logo size
-   - Check color contrast
-
-2. **Cache Issues**
-   - Clear cache directory
-   - Check permissions
-   - Verify index.json integrity
-
-3. **Logo Problems**
-   - Verify logo path
-   - Check image format
-   - Adjust scale factor
-
 ## 🚀 Future Enhancements
-
-Planned improvements:
 1. SVG output support
 2. Additional styling options
-3. Batch generation
+3. Animated QR codes
 4. Custom error patterns
-5. Animation support
+5. QR code validation
+6. Multiple logo support
+7. Advanced color gradients
+8. WebP format support
 
 ---
 *Last updated: 2024-01-24*

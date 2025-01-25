@@ -1,228 +1,287 @@
 #!/usr/bin/env python3
-"""
-QR Code Generator for WiFi Configuration
-Generates styled QR codes with optional logos and caching support.
+"""QR Code generation module for the Raspberry Pi Screen Management Server.
+
+This module handles the generation of QR codes for WiFi configuration and URLs,
+with support for styling, caching, and logo embedding.
 """
 
 import os
 import json
 import hashlib
-from typing import Optional, Dict
+from typing import Optional, Dict, Any, Union
+from pathlib import Path
 from datetime import datetime, timedelta
 import qrcode
 from qrcode.image.styledpil import StyledPilImage
 from qrcode.image.styles.moduledrawers import RoundedModuleDrawer
 from qrcode.image.styles.colormask import RadialGradiantColorMask
 from PIL import Image
+from .utils import (
+    logger,
+    validate_input,
+    validate_color,
+    ValidationError,
+    ConfigurationError
+)
 
-# Configuration
-CACHE_DIR = "qr_cache"
-LOGO_PATH = "static/logo.png"
+# Constants
 CACHE_DURATION = timedelta(hours=24)
-
-# Ensure cache directory exists
-os.makedirs(CACHE_DIR, exist_ok=True)
+DEFAULT_LOGO_PATH = os.path.join(os.path.dirname(__file__), 'static/logo.png')
+QR_VERSION = 1
+QR_BOX_SIZE = 10
+QR_BORDER = 4
+DEFAULT_COLOR = "#000000"
 
 class QRCodeCache:
     """Manages caching of generated QR codes."""
-    
-    def __init__(self, cache_dir: str = CACHE_DIR):
+
+    def __init__(self, cache_dir: str = "qr_cache"):
+        """Initialize QR code cache.
+
+        Args:
+            cache_dir: Directory to store cached QR codes
+        """
         self.cache_dir = cache_dir
+        self.index_file = os.path.join(cache_dir, "index.json")
+        self._ensure_cache_dir()
         self.cache_index = self._load_cache_index()
-    
-    def _load_cache_index(self) -> Dict:
-        """Load cache index from file."""
-        index_path = os.path.join(self.cache_dir, "index.json")
+
+    def _ensure_cache_dir(self) -> None:
+        """Create cache directory if it doesn't exist."""
+        os.makedirs(self.cache_dir, exist_ok=True)
+
+    def _load_cache_index(self) -> Dict[str, Any]:
+        """Load cache index from file.
+
+        Returns:
+            Cache index dictionary
+        """
         try:
-            if os.path.exists(index_path):
-                with open(index_path, 'r') as f:
-                    return json.load(f)
+            with open(self.index_file, 'r') as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
             return {}
-        except Exception:
-            return {}
-    
+
     def _save_cache_index(self) -> None:
         """Save cache index to file."""
-        index_path = os.path.join(self.cache_dir, "index.json")
-        try:
-            with open(index_path, 'w') as f:
-                json.dump(self.cache_index, f)
-        except Exception:
-            pass
-    
-    def _generate_key(self, data: str) -> str:
-        """Generate cache key from data."""
-        return hashlib.md5(data.encode()).hexdigest()
-    
-    def get(self, data: str) -> Optional[str]:
-        """
-        Retrieve QR code from cache if valid.
-        
+        with open(self.index_file, 'w') as f:
+            json.dump(self.cache_index, f)
+
+    def _generate_key(self, data: Dict[str, Any]) -> str:
+        """Generate unique cache key for QR code data.
+
         Args:
-            data: QR code content
-            
+            data: QR code data dictionary
+
         Returns:
-            Path to cached QR code or None if not found/expired
+            Cache key string
+        """
+        data_str = json.dumps(data, sort_keys=True)
+        return hashlib.sha256(data_str.encode()).hexdigest()
+
+    def get(self, data: Dict[str, Any]) -> Optional[str]:
+        """Get cached QR code path if available.
+
+        Args:
+            data: QR code data dictionary
+
+        Returns:
+            Path to cached QR code or None if not found
         """
         key = self._generate_key(data)
-        cache_info = self.cache_index.get(key)
-        
-        if not cache_info:
+        if key not in self.cache_index:
             return None
-            
-        file_path = os.path.join(self.cache_dir, f"{key}.png")
-        if not os.path.exists(file_path):
-            return None
-            
-        # Check expiration
-        created = datetime.fromisoformat(cache_info['created'])
+
+        entry = self.cache_index[key]
+        created = datetime.fromisoformat(entry['created'])
         if datetime.now() - created > CACHE_DURATION:
             self._cleanup(key)
             return None
-            
-        return file_path
-    
-    def put(self, data: str, file_path: str) -> None:
-        """
-        Add QR code to cache.
-        
+
+        file_path = os.path.join(self.cache_dir, f"{key}.png")
+        return file_path if os.path.exists(file_path) else None
+
+    def put(self, data: Dict[str, Any], file_path: str) -> str:
+        """Add QR code to cache.
+
         Args:
-            data: QR code content
-            file_path: Path to QR code image
+            data: QR code data dictionary
+            file_path: Path to QR code file
+
+        Returns:
+            Cache file path
         """
         key = self._generate_key(data)
-        self.cache_index[key] = {
-            'created': datetime.now().isoformat(),
-            'data': data
-        }
-        self._save_cache_index()
-    
-    def _cleanup(self, key: str) -> None:
-        """Remove expired cache entry."""
-        try:
-            file_path = os.path.join(self.cache_dir, f"{key}.png")
-            if os.path.exists(file_path):
-                os.remove(file_path)
-            self.cache_index.pop(key, None)
-            self._save_cache_index()
-        except Exception:
-            pass
-
-# Initialize cache
-qr_cache = QRCodeCache()
-
-def create_styled_qr(data: str, color: str = "#000000") -> Image:
-    """
-    Create a styled QR code with custom colors and rounded modules.
-    
-    Args:
-        data: Content to encode
-        color: Hex color code for QR code
+        cache_path = os.path.join(self.cache_dir, f"{key}.png")
         
+        if os.path.exists(file_path):
+            os.replace(file_path, cache_path)
+            self.cache_index[key] = {
+                'created': datetime.now().isoformat(),
+                'data': data
+            }
+            self._save_cache_index()
+        
+        return cache_path
+
+    def _cleanup(self, key: str) -> None:
+        """Remove expired cache entry.
+
+        Args:
+            key: Cache key to remove
+        """
+        file_path = os.path.join(self.cache_dir, f"{key}.png")
+        try:
+            os.remove(file_path)
+        except FileNotFoundError:
+            pass
+        self.cache_index.pop(key, None)
+        self._save_cache_index()
+
+def create_styled_qr(
+    data: str,
+    color: str = DEFAULT_COLOR,
+    version: int = QR_VERSION,
+    box_size: int = QR_BOX_SIZE,
+    border: int = QR_BORDER
+) -> Image.Image:
+    """Create a styled QR code with rounded modules.
+
+    Args:
+        data: Content to encode in QR code
+        color: Hex color code for QR code
+        version: QR code version
+        box_size: Size of each box in pixels
+        border: Border size in boxes
+
     Returns:
-        PIL Image object containing the styled QR code
+        Generated QR code image
+
+    Raises:
+        ValidationError: If color format is invalid
     """
+    if not validate_color(color):
+        raise ValidationError(f"Invalid color format: {color}")
+
     qr = qrcode.QRCode(
-        version=1,
+        version=version,
         error_correction=qrcode.constants.ERROR_CORRECT_H,
-        box_size=10,
-        border=4,
+        box_size=box_size,
+        border=border
     )
     qr.add_data(data)
     qr.make(fit=True)
-    
-    # Create styled QR code
+
+    rgb_color = tuple(int(color[i:i+2], 16) for i in (1, 3, 5))
     return qr.make_image(
         image_factory=StyledPilImage,
         module_drawer=RoundedModuleDrawer(),
-        color_mask=RadialGradiantColorMask(
-            back_color=(255, 255, 255),
-            center_color=tuple(int(color[i:i+2], 16) for i in (1, 3, 5)),
-            edge_color=(0, 0, 0)
-        )
+        color=rgb_color
     )
 
-def add_logo(qr_image: Image, scale: float = 0.2) -> Image:
-    """
-    Add logo to center of QR code.
-    
+def add_logo(
+    qr_image: Image.Image,
+    logo_path: str = DEFAULT_LOGO_PATH,
+    scale: float = 0.2
+) -> Image.Image:
+    """Add logo to center of QR code.
+
     Args:
         qr_image: Base QR code image
+        logo_path: Path to logo file
         scale: Logo size relative to QR code
-        
+
     Returns:
-        QR code image with embedded logo
+        QR code with embedded logo
+
+    Raises:
+        ConfigurationError: If logo file is not found
     """
-    if not os.path.exists(LOGO_PATH):
-        return qr_image
-        
     try:
-        logo = Image.open(LOGO_PATH)
-        
-        # Calculate logo size
-        logo_size = int(qr_image.size[0] * scale)
-        logo = logo.resize((logo_size, logo_size))
-        
-        # Calculate position
-        pos = ((qr_image.size[0] - logo_size) // 2,
-               (qr_image.size[1] - logo_size) // 2)
-        
-        # Create copy of QR code
-        qr_with_logo = qr_image.copy()
-        qr_with_logo.paste(logo, pos)
-        
-        return qr_with_logo
-    except Exception:
-        return qr_image
+        logo = Image.open(logo_path)
+    except FileNotFoundError:
+        raise ConfigurationError(f"Logo file not found: {logo_path}")
+
+    # Calculate logo size
+    logo_size = int(qr_image.size[0] * scale)
+    logo = logo.resize((logo_size, logo_size))
+
+    # Calculate position to center logo
+    pos = ((qr_image.size[0] - logo_size) // 2,
+           (qr_image.size[1] - logo_size) // 2)
+
+    # Create copy of QR code and paste logo
+    qr_with_logo = qr_image.copy()
+    qr_with_logo.paste(logo, pos)
+    return qr_with_logo
 
 def generate_wifi_qr(
     ssid: str,
     password: str,
     security: str = "WPA",
-    color: str = "#000000",
-    add_logo_flag: bool = True
+    color: str = DEFAULT_COLOR,
+    add_logo_flag: bool = True,
+    cache: Optional[QRCodeCache] = None
 ) -> str:
-    """
-    Generate QR code for WiFi configuration.
-    
+    """Generate QR code for WiFi configuration.
+
     Args:
         ssid: Network name
         password: Network password
         security: Security type (WPA/WEP/nopass)
         color: QR code color
         add_logo_flag: Whether to add logo
-        
+        cache: Optional QR code cache
+
     Returns:
         Path to generated QR code image
+
+    Raises:
+        ValidationError: If input validation fails
     """
-    # Validate input
-    if not ssid:
-        raise ValueError("SSID is required")
-    if security not in ["WPA", "WEP", "nopass"]:
-        raise ValueError("Invalid security type")
-        
+    # Validate inputs
+    ssid = validate_input(ssid, max_length=32)
+    if security.upper() not in ["WPA", "WEP", "nopass"]:
+        raise ValidationError(f"Invalid security type: {security}")
+
+    # Prepare QR code data
+    data = {
+        "ssid": ssid,
+        "password": password,
+        "security": security,
+        "color": color,
+        "add_logo": add_logo_flag
+    }
+
+    # Check cache
+    if cache:
+        cached_path = cache.get(data)
+        if cached_path:
+            return cached_path
+
     # Generate WiFi configuration string
     wifi_string = f"WIFI:T:{security};S:{ssid};P:{password};;"
-    
-    # Check cache
-    cached_path = qr_cache.get(wifi_string)
-    if cached_path:
-        return cached_path
-    
-    # Generate QR code
-    qr_image = create_styled_qr(wifi_string, color)
-    
-    # Add logo if requested
+
+    # Create QR code
+    qr_image = create_styled_qr(wifi_string, color=color)
     if add_logo_flag:
         qr_image = add_logo(qr_image)
+
+    # Save QR code
+    output_dir = os.path.join(os.path.dirname(__file__), "static/qr")
+    os.makedirs(output_dir, exist_ok=True)
     
-    # Save and cache
-    key = qr_cache._generate_key(wifi_string)
-    file_path = os.path.join(CACHE_DIR, f"{key}.png")
-    qr_image.save(file_path)
-    qr_cache.put(wifi_string, file_path)
+    temp_path = os.path.join(output_dir, f"temp_{datetime.now().timestamp()}.png")
+    qr_image.save(temp_path)
+
+    # Add to cache if enabled
+    if cache:
+        return cache.put(data, temp_path)
     
-    return file_path
+    return temp_path
+
+# Initialize cache
+qr_cache = QRCodeCache()
 
 def generate_qr_code(data, output_file, qr_type="wifi"):
     """

@@ -6,253 +6,236 @@
 ![Coverage](https://img.shields.io/badge/coverage-98%25-brightgreen)
 
 ## 🔍 Overview
-Collection of utility functions for input validation, sanitization, and data formatting used throughout the Raspberry Pi Screen Management Server.
+Core utility functions for the Raspberry Pi Screen Management Server, providing robust input validation, error handling, logging configuration, and common helper functions. Emphasizes security and maintainability through centralized error handling and consistent validation patterns.
 
 ## 🔗 Related Documentation
 - [Server Documentation](Server.md)
 - [QR Code Module](qr_code.md)
 
 ## ⭐ Features
-- Input sanitization and validation
-- Network-related utilities
-- File handling functions
-- Data formatting helpers
+- Comprehensive input validation
+- Centralized error handling
+- Advanced logging configuration
+- Type hints and docstrings
+- Performance monitoring
+- Security-focused utilities
 
-## 🛠️ Functions
+## 📦 Dependencies
+- Python standard library
+- `typing`: Type hints
+- `logging`: Logging system
+- `pathlib`: Path handling
+- `ipaddress`: IP validation
 
-### 🔒 Input Sanitization
+## 🛠️ Exception Classes
 
-#### sanitize_input(text: str) -> str
-Sanitizes user input by removing dangerous characters and HTML escaping.
-
+### ValidationError
 ```python
-clean_text = sanitize_input("<script>alert('test')</script>")
-# Result: "alerttest"
+class ValidationError(Exception):
+    """Raised when input validation fails."""
+    pass
+```
+
+### ConfigurationError
+```python
+class ConfigurationError(Exception):
+    """Raised when configuration is invalid or missing."""
+    pass
+```
+
+### NetworkError
+```python
+class NetworkError(Exception):
+    """Raised when network operations fail."""
+    pass
+```
+
+## 📝 Functions
+
+### Logging Setup
+
+#### setup_logging()
+```python
+def setup_logging(
+    name: str,
+    level: str = "INFO",
+    log_file: Optional[str] = None
+) -> logging.Logger:
+    """Configure logging with file and console handlers."""
 ```
 
 Parameters:
-- `text`: Input text to sanitize
+- `name`: Logger name
+- `level`: Logging level
+- `log_file`: Optional log file path
 
-Returns:
-- Sanitized text string
+### Input Validation
 
-### 📡 Network Validation
-
-#### validate_ssid(ssid: str) -> bool
-Validates WiFi SSID format.
-
+#### validate_input()
 ```python
-is_valid = validate_ssid("My Network")
-# Result: True
+def validate_input(
+    text: str,
+    min_length: int = 1,
+    max_length: int = 100,
+    pattern: str = r'^[\w\s\-\.@!()]+$'
+) -> str:
+    """Validate and sanitize user input."""
 ```
 
 Parameters:
-- `ssid`: Network SSID to validate
+- `text`: Input text
+- `min_length`: Minimum length
+- `max_length`: Maximum length
+- `pattern`: Regex pattern
 
-Returns:
-- True if SSID is valid, False otherwise
-
-#### validate_password(password: str) -> bool
-Validates WiFi password format.
-
+#### validate_ip_address()
 ```python
-is_valid = validate_password("MySecurePass123")
-# Result: True
+def validate_ip_address(ip: str) -> bool:
+    """Validate IPv4 or IPv6 address format."""
 ```
 
-Parameters:
-- `password`: Network password to validate
-
-Returns:
-- True if password is valid, False otherwise
-
-#### validate_ip_address(ip: str) -> bool
-Validates IPv4 address format.
-
+#### validate_color()
 ```python
-is_valid = validate_ip_address("192.168.1.1")
-# Result: True
+def validate_color(color: str) -> bool:
+    """Validate hex color code format."""
 ```
 
-Parameters:
-- `ip`: IP address to validate
+### Configuration Management
 
-Returns:
-- True if IP is valid, False otherwise
-
-### 📊 Data Parsing
-
-#### parse_signal_strength(quality: str) -> Optional[int]
-Parses WiFi signal strength from iwlist output.
-
+#### load_config()
 ```python
-strength = parse_signal_strength("70/100")
-# Result: 70
+def load_config(path: Union[str, Path]) -> Dict[str, Any]:
+    """Load configuration from JSON file."""
 ```
 
-Parameters:
-- `quality`: Signal quality string from iwlist
+### Performance Monitoring
 
-Returns:
-- Signal strength as percentage or None if parsing fails
-
-#### parse_mac_address(mac: str) -> Optional[str]
-Validates and formats MAC address.
-
+#### log_execution_time()
 ```python
-formatted_mac = parse_mac_address("00:11:22:33:44:55")
-# Result: "00:11:22:33:44:55"
+def log_execution_time(logger: logging.Logger):
+    """Decorator to log function execution time."""
 ```
 
-Parameters:
-- `mac`: MAC address string
+## ⚙️ Configuration
 
-Returns:
-- Formatted MAC address or None if invalid
-
-### 📝 Data Formatting
-
-#### format_bytes(size: int) -> str
-Formats byte size to human readable string.
-
+### Error Messages
 ```python
-readable_size = format_bytes(1024 * 1024)
-# Result: "1.0 MB"
+ERROR_MESSAGES = {
+    'invalid_input': 'Input contains invalid characters: {details}',
+    'invalid_length': 'Input length must be between {min_len} and {max_len}',
+    'invalid_ip': 'Invalid IP address format: {ip}',
+    'invalid_url': 'Invalid URL format: {url}',
+    'invalid_color': 'Invalid color format: {color}',
+    'config_not_found': 'Configuration file not found: {path}',
+    'network_unreachable': 'Network is unreachable: {details}'
+}
 ```
 
-Parameters:
-- `size`: Size in bytes
-
-Returns:
-- Formatted string (e.g., "1.5 MB")
-
-### 🌐 URL Handling
-
-#### is_valid_url(url: str) -> bool
-Validates URL format.
-
+### Logging Configuration
 ```python
-is_valid = is_valid_url("https://example.com")
-# Result: True
+LOGGING_CONFIG = {
+    "version": 1,
+    "formatters": {
+        "default": {
+            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        }
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "default"
+        },
+        "file": {
+            "class": "logging.FileHandler",
+            "formatter": "default",
+            "filename": "/var/log/raspi_screen/utils.log"
+        }
+    },
+    "root": {
+        "level": "INFO",
+        "handlers": ["console", "file"]
+    }
+}
 ```
 
-Parameters:
-- `url`: URL to validate
+## 🔒 Security Features
 
-Returns:
-- True if URL is valid, False otherwise
+### Input Validation Rules
+- Strict character whitelisting
+- Length restrictions
+- Pattern matching
+- HTML escaping
+- Control character removal
 
-### 📂 File Operations
+### File Operations
+- Path validation
+- Permission checking
+- Safe file handling
+- Atomic operations
 
-#### generate_safe_filename(filename: str) -> str
-Generates a safe filename from user input.
+### Network Validation
+- IPv4/IPv6 support
+- URL format checking
+- Network reachability tests
+- Timeout handling
 
-```python
-safe_name = generate_safe_filename("my:file?.txt")
-# Result: "myfile.txt"
-```
+## 📊 Performance
 
-Parameters:
-- `filename`: Original filename
+### Optimization Techniques
+- Regex compilation
+- Efficient string operations
+- Cached properties
+- Lazy loading
+- Resource cleanup
 
-Returns:
-- Safe filename string
-
-## ⚙️ Input Validation Rules
-
-### SSID Validation
-- Length: 1-32 characters
-- Allowed characters: alphanumeric, spaces, .-@!()
-
-### Password Validation
-- Length: 8-63 characters for WPA
-- Empty allowed for open networks
-- Allowed characters: alphanumeric, special characters
-
-### URL Validation
-- Must start with http:// or https://
-- Valid domain or IP address
-- Optional port number
-- Optional path
-
-## 👌 Best Practices
-
-1. **Input Handling**
-   - Always sanitize user input
-   - Validate before processing
-   - Handle empty/null values
-
-2. **Error Handling**
-   - Use Optional types for nullable returns
-   - Catch and log exceptions
-   - Provide meaningful error messages
-
-3. **Performance**
-   - Use regex compilation
-   - Efficient string operations
-   - Proper type hints
+### Monitoring
+- Function execution timing
+- Resource usage tracking
+- Error rate monitoring
+- Performance logging
 
 ## 📝 Usage Examples
 
-### Complete Input Processing
+### Input Validation
 ```python
-# Sanitize and validate user input
-ssid = sanitize_input(raw_ssid)
-if not validate_ssid(ssid):
-    raise ValueError("Invalid SSID")
-
-# Process network credentials
-password = sanitize_input(raw_password)
-if not validate_password(password):
-    raise ValueError("Invalid password")
+try:
+    clean_text = validate_input(
+        text="User input",
+        min_length=5,
+        max_length=50,
+        pattern=r'^[\w\s]+$'
+    )
+except ValidationError as e:
+    logger.error(f"Validation failed: {e}")
 ```
 
-### Network Information Formatting
+### Configuration Loading
 ```python
-# Format network details
-signal = parse_signal_strength("65/100")
-mac = parse_mac_address("00:11:22:33:44:55")
-ip = validate_ip_address("192.168.1.1")
-
-network_info = {
-    "signal": signal,
-    "mac": mac,
-    "ip": ip
-}
+try:
+    config = load_config("/path/to/config.json")
+except ConfigurationError as e:
+    logger.error(f"Config error: {e}")
 ```
 
-### File Handling
+### Performance Monitoring
 ```python
-# Generate safe filename and format size
-filename = generate_safe_filename("user input.txt")
-size = format_bytes(os.path.getsize(filename))
-```
-
-## ⚠️ Error Messages
-
-Common validation errors:
-```python
-ERRORS = {
-    "ssid_length": "SSID must be 1-32 characters",
-    "ssid_chars": "SSID contains invalid characters",
-    "password_length": "Password must be 8-63 characters",
-    "password_chars": "Password contains invalid characters",
-    "url_format": "Invalid URL format",
-    "mac_format": "Invalid MAC address format",
-    "ip_format": "Invalid IP address format"
-}
+@log_execution_time(logger)
+def long_running_function():
+    # Function code here
+    pass
 ```
 
 ## 🚀 Future Enhancements
-
-Planned improvements:
-1. IPv6 address validation
-2. Extended character support for SSIDs
-3. Additional file format validations
-4. Network protocol validations
-5. Enhanced security checks
+1. Enhanced IPv6 support
+2. Additional validation patterns
+3. Configuration versioning
+4. Performance profiling
+5. Memory usage optimization
+6. Extended security checks
+7. Async support
+8. Caching mechanisms
 
 ---
 *Last updated: 2024-01-24*
 
-Tags: #utils #python #validation #security #network #formatting #file-handling 
+Tags: #utils #python #validation #security #logging #configuration #performance 

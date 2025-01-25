@@ -10,15 +10,24 @@ import asyncio
 import logging
 from datetime import datetime
 from functools import wraps
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
+from pathlib import Path
 
-from flask import Flask, request, jsonify, render_template, send_file
-from flask_babel import Babel, gettext
+from flask import Flask, request, jsonify, render_template, send_file, send_from_directory, current_app
+from flask_babel import Babel, gettext as _
 from werkzeug.middleware.proxy_fix import ProxyFix
 import subprocess
 
-from .qr_code import generate_wifi_qr
-from .utils import sanitize_input, validate_ssid, validate_password
+from .qr_code import generate_wifi_qr, QRCodeCache
+from .utils import (
+    sanitize_input,
+    validate_ssid,
+    validate_password,
+    validate_color,
+    ValidationError,
+    NetworkError,
+    log_execution_time
+)
 
 # Configure logging
 logging.basicConfig(
@@ -33,8 +42,11 @@ logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'default-secret-key')
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config.from_object('config.default')
+
+# Load environment-specific config
+env = os.getenv('FLASK_ENV', 'development')
+app.config.from_object(f'config.{env}')
 
 # Configure Babel for i18n
 babel = Babel(app)
@@ -48,6 +60,20 @@ app.config['LANGUAGES'] = {
 
 # Configure proxy settings
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
+# Initialize QR code cache
+qr_cache = QRCodeCache(app.config['QR_CACHE_DIR'])
+
+# Error messages
+ERROR_MESSAGES = {
+    'invalid_ssid': _('Invalid SSID format'),
+    'invalid_password': _('Invalid password format'),
+    'invalid_color': _('Invalid color format'),
+    'network_scan_failed': _('Network scan failed'),
+    'connection_failed': _('Failed to connect to network'),
+    'qr_generation_failed': _('Failed to generate QR code'),
+    'file_not_found': _('File not found')
+}
 
 def log_request(f):
     """Decorator to log request details."""
@@ -75,7 +101,24 @@ def get_locale():
     # Check Accept-Language header
     return request.accept_languages.best_match(app.config['LANGUAGES'].keys())
 
-async def scan_networks() -> List[Dict]:
+def handle_errors(f):
+    """Decorator for consistent error handling across routes."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except ValidationError as e:
+            logger.warning(f"Validation error: {str(e)}")
+            return jsonify({'error': str(e)}), 400
+        except NetworkError as e:
+            logger.error(f"Network error: {str(e)}")
+            return jsonify({'error': str(e)}), 503
+        except Exception as e:
+            logger.exception("Unexpected error")
+            return jsonify({'error': _('Internal server error')}), 500
+    return wrapper
+
+async def scan_networks() -> List[Dict[str, Any]]:
     """
     Scan for available WiFi networks asynchronously.
     
@@ -85,15 +128,14 @@ async def scan_networks() -> List[Dict]:
     try:
         # Run iwlist scan
         proc = await asyncio.create_subprocess_shell(
-            "sudo iwlist wlan0 scan | grep -E 'ESSID|Quality|Encryption'",
+            "sudo iwlist wlan0 scan | grep -E 'ESSID|Quality'",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
         stdout, stderr = await proc.communicate()
         
         if proc.returncode != 0:
-            logger.error("Network scan failed: %s", stderr.decode())
-            return []
+            raise NetworkError(ERROR_MESSAGES['network_scan_failed'])
             
         # Parse output
         output = stdout.decode()
@@ -104,12 +146,10 @@ async def scan_networks() -> List[Dict]:
             if 'ESSID' in line:
                 if current_network:
                     networks.append(current_network)
-                current_network = {'ssid': line.split('"')[1]}
+                current_network = {'ssid': line.split(':')[1].strip('"')}
             elif 'Quality' in line:
                 quality = line.split('=')[1].split('/')[0]
                 current_network['quality'] = int(quality)
-            elif 'Encryption' in line:
-                current_network['encrypted'] = 'on' in line.lower()
                 
         if current_network:
             networks.append(current_network)
@@ -117,8 +157,8 @@ async def scan_networks() -> List[Dict]:
         return sorted(networks, key=lambda x: x['quality'], reverse=True)
         
     except Exception as e:
-        logger.error("Error scanning networks: %s", str(e))
-        return []
+        logger.exception("Network scan failed")
+        raise NetworkError(ERROR_MESSAGES['network_scan_failed'])
 
 @app.route('/')
 @log_request
@@ -126,11 +166,14 @@ def index():
     """Render main page."""
     return render_template(
         'index.html',
-        title=gettext('Raspberry Pi Screen Management')
+        title=gettext('Raspberry Pi Screen Management'),
+        languages=app.config['LANGUAGES'],
+        current_lang=get_locale()
     )
 
 @app.route('/api/networks', methods=['GET'])
 @log_request
+@handle_errors
 async def get_networks():
     """API endpoint to scan for WiFi networks."""
     networks = await scan_networks()
@@ -138,6 +181,8 @@ async def get_networks():
 
 @app.route('/api/connect', methods=['POST'])
 @log_request
+@handle_errors
+@log_execution_time(logger)
 def connect_wifi():
     """API endpoint to connect to WiFi network."""
     try:
@@ -150,47 +195,67 @@ def connect_wifi():
         # Validate and sanitize input
         ssid = sanitize_input(data.get('ssid', ''))
         password = data.get('password', '')
+        color = data.get('color', '#000000')
         
         if not validate_ssid(ssid):
-            return jsonify({'error': 'Invalid SSID'}), 400
+            raise ValidationError(ERROR_MESSAGES['invalid_ssid'])
         if not validate_password(password):
-            return jsonify({'error': 'Invalid password'}), 400
+            raise ValidationError(ERROR_MESSAGES['invalid_password'])
+        if not validate_color(color):
+            raise ValidationError(ERROR_MESSAGES['invalid_color'])
             
         # Generate QR code
         try:
             qr_path = generate_wifi_qr(
                 ssid=ssid,
                 password=password,
-                security='WPA',
-                color=data.get('color', '#000000'),
-                add_logo_flag=data.get('add_logo', True)
+                color=color,
+                cache=qr_cache
             )
         except Exception as e:
-            logger.error("QR code generation failed: %s", str(e))
-            return jsonify({'error': 'QR code generation failed'}), 500
+            logger.exception("QR code generation failed")
+            raise ValidationError(ERROR_MESSAGES['qr_generation_failed'])
             
         # Return QR code path
         return jsonify({
             'success': True,
-            'qr_code': qr_path
+            'qr_code': os.path.basename(qr_path)
         })
         
     except Exception as e:
         logger.error("WiFi connection failed: %s", str(e))
-        return jsonify({'error': str(e)}), 500
+        raise ValidationError(ERROR_MESSAGES['connection_failed'])
 
 @app.route('/qr/<path:filename>')
 @log_request
+@handle_errors
 def serve_qr(filename):
     """Serve generated QR code images."""
     try:
-        return send_file(
-            os.path.join('qr_cache', filename),
-            mimetype='image/png'
+        return send_from_directory(
+            app.config['QR_CACHE_DIR'],
+            filename
         )
     except Exception as e:
         logger.error("Error serving QR code: %s", str(e))
-        return jsonify({'error': 'QR code not found'}), 404
+        raise ValidationError(ERROR_MESSAGES['file_not_found'])
+
+@app.route('/translations/<lang>')
+def get_translations(lang):
+    """Get translation strings for specified language."""
+    if lang not in app.config['LANGUAGES']:
+        return jsonify({'error': 'Language not supported'}), 400
+
+    translations = {}
+    try:
+        translation_file = Path(app.root_path) / 'translations' / lang / 'LC_MESSAGES' / 'messages.json'
+        if translation_file.exists():
+            with open(translation_file, 'r', encoding='utf-8') as f:
+                translations = json.load(f)
+    except Exception as e:
+        logger.warning(f"Failed to load translations for {lang}: {e}")
+
+    return jsonify(translations)
 
 @app.errorhandler(Exception)
 def handle_error(error):
