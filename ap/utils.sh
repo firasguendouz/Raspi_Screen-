@@ -506,7 +506,7 @@ restore_config_file() {
     fi
 }
 
-# Setup all configuration files
+# Set up all configuration files
 # Args:
 #   None
 # Returns:
@@ -515,25 +515,24 @@ setup_config_files() {
     log_info "Setting up configuration files..."
     
     # Create required directories
-    mkdir -p "$(dirname "$HOSTAPD_CONF")"
-    mkdir -p "$(dirname "$WPA_SUPPLICANT_CONF")"
+    mkdir -p /etc/hostapd
+    mkdir -p /etc/dnsmasq.d
     
-    # Backup existing configurations
-    backup_config_file "$HOSTAPD_CONF"
-    backup_config_file "$DNSMASQ_CONF"
-    backup_config_file "$DHCPCD_CONF"
-    backup_config_file "$WPA_SUPPLICANT_CONF"
+    # Generate hostapd configuration
+    generate_hostapd_config "$HOSTAPD_CONF" || return 1
     
-    # Copy new configurations
-    copy_config_file "hostapd.conf" "$HOSTAPD_CONF" || return 1
-    copy_config_file "dnsmasq.conf" "$DNSMASQ_CONF" || return 1
-    copy_config_file "dhcpcd.conf" "$DHCPCD_CONF" || return 1
-    copy_config_file "wpa_supplicant.conf" "$WPA_SUPPLICANT_CONF" || return 1
+    # Generate dnsmasq configuration
+    generate_dnsmasq_config "$DNSMASQ_CONF" || return 1
+    
+    # Configure dhcpcd
+    echo "interface $AP_INTERFACE" >> "$DHCPCD_CONF"
+    echo "    static ip_address=$AP_IP/24" >> "$DHCPCD_CONF"
+    echo "    nohook wpa_supplicant" >> "$DHCPCD_CONF"
     
     return 0
 }
 
-# Restore all configuration files
+# Restore all configuration files from backups
 # Args:
 #   None
 # Returns:
@@ -541,10 +540,11 @@ setup_config_files() {
 restore_config_files() {
     log_info "Restoring configuration files..."
     
-    restore_config_file "$HOSTAPD_CONF"
-    restore_config_file "$DNSMASQ_CONF"
-    restore_config_file "$DHCPCD_CONF"
-    restore_config_file "$WPA_SUPPLICANT_CONF"
+    # Restore each configuration file from backup
+    restore_config_file "$HOSTAPD_CONF" || return 1
+    restore_config_file "$DNSMASQ_CONF" || return 1
+    restore_config_file "$DHCPCD_CONF" || return 1
+    restore_config_file "$WPA_SUPPLICANT_CONF" || return 1
     
     return 0
 } 

@@ -176,7 +176,7 @@ def create_styled_qr(
     return qr.make_image(
         image_factory=StyledPilImage,
         module_drawer=RoundedModuleDrawer(),
-        color=rgb_color
+        color_mask=RadialGradiantColorMask(back_color=(255, 255, 255), center_color=rgb_color, edge_color=rgb_color)
     )
 
 def add_logo(
