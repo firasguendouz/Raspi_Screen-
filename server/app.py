@@ -58,6 +58,17 @@ app.config['LANGUAGES'] = {
     'de': 'Deutsch'
 }
 
+@babel.localeselector
+def get_locale():
+    """Determine the best language for the user."""
+    # Check URL parameter
+    lang = request.args.get('lang')
+    if lang and lang in app.config['LANGUAGES']:
+        return lang
+        
+    # Check Accept-Language header
+    return request.accept_languages.best_match(app.config['LANGUAGES'].keys())
+
 # Configure proxy settings
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
@@ -89,17 +100,6 @@ def log_request(f):
         )
         return f(*args, **kwargs)
     return decorated_function
-
-@babel.select_locale
-def get_locale():
-    """Determine the best language for the user."""
-    # Check URL parameter
-    lang = request.args.get('lang')
-    if lang and lang in app.config['LANGUAGES']:
-        return lang
-        
-    # Check Accept-Language header
-    return request.accept_languages.best_match(app.config['LANGUAGES'].keys())
 
 def handle_errors(f):
     """Decorator for consistent error handling across routes."""
