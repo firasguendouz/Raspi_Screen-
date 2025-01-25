@@ -353,42 +353,19 @@ trap cleanup EXIT
 # Returns:
 #   0 on success, 1 on failure
 configure_firewall() {
-    log_info "Configuring firewall rules..."
+    log_debug "Configuring firewall rules..."
     
-    if [[ "$AP_ENV" != "$ENV_TEST" ]]; then
-        # Allow specified ports
-        IFS=',' read -ra PORTS <<< "$AP_ALLOW_PORTS"
-        for port in "${PORTS[@]}"; do
-            log_debug "Allowing incoming traffic on port $port"
-            iptables -A INPUT -p tcp --dport "$port" -j ACCEPT
-            validate_cmd "allow port $port" $?
-        done
-        
-        # Configure port forwarding
-        if [[ -n "$AP_FORWARD_PORTS" ]]; then
-            IFS=',' read -ra FORWARDS <<< "$AP_FORWARD_PORTS"
-            for forward in "${FORWARDS[@]}"; do
-                IFS=':' read -ra PARTS <<< "$forward"
-                if [[ ${#PARTS[@]} -eq 2 ]]; then
-                    log_debug "Forwarding port ${PARTS[0]} to ${PARTS[1]}"
-                    iptables -t nat -A PREROUTING -p tcp --dport "${PARTS[0]}" -j REDIRECT --to-port "${PARTS[1]}"
-                    validate_cmd "forward port ${PARTS[0]} to ${PARTS[1]}" $?
-                fi
-            done
-        fi
-        
-        # Block specified ports
-        if [[ -n "$AP_BLOCK_PORTS" ]]; then
-            IFS=',' read -ra BLOCKS <<< "$AP_BLOCK_PORTS"
-            for port in "${BLOCKS[@]}"; do
-                log_debug "Blocking traffic on port $port"
-                iptables -A INPUT -p tcp --dport "$port" -j DROP
-                validate_cmd "block port $port" $?
-            done
-        fi
-    else
-        log_debug "[TEST] Would configure firewall rules"
-    fi
+    # Allow HTTP traffic for captive portal
+    iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+    validate_cmd "add HTTP firewall rule" $?
+    
+    # Allow DNS traffic
+    iptables -A INPUT -p udp --dport 53 -j ACCEPT
+    validate_cmd "add DNS firewall rule" $?
+    
+    # Allow DHCP traffic
+    iptables -A INPUT -p udp --dport 67:68 -j ACCEPT
+    validate_cmd "add DHCP firewall rule" $?
     
     return 0
 }
@@ -512,22 +489,30 @@ restore_config_file() {
 # Returns:
 #   0 on success, 1 on failure
 setup_config_files() {
-    log_info "Setting up configuration files..."
+    log_debug "Setting up configuration files..."
     
-    # Create required directories
+    # Create required directories if they don't exist
     mkdir -p /etc/hostapd
     mkdir -p /etc/dnsmasq.d
     
-    # Generate hostapd configuration
-    generate_hostapd_config "$HOSTAPD_CONF" || return 1
+    # Copy configuration files from template directory
+    local config_dir="$SCRIPT_DIR/../config"
     
-    # Generate dnsmasq configuration
-    generate_dnsmasq_config "$DNSMASQ_CONF" || return 1
+    # Copy hostapd configuration
+    if [[ -f "$config_dir/hostapd.conf" ]]; then
+        copy_config "$config_dir/hostapd.conf" "$HOSTAPD_CONF"
+    else
+        log_error "hostapd.conf template not found"
+        return 1
+    fi
     
-    # Configure dhcpcd
-    echo "interface $AP_INTERFACE" >> "$DHCPCD_CONF"
-    echo "    static ip_address=$AP_IP/24" >> "$DHCPCD_CONF"
-    echo "    nohook wpa_supplicant" >> "$DHCPCD_CONF"
+    # Copy dnsmasq configuration
+    if [[ -f "$config_dir/dnsmasq.conf" ]]; then
+        copy_config "$config_dir/dnsmasq.conf" "$DNSMASQ_CONF"
+    else
+        log_error "dnsmasq.conf template not found"
+        return 1
+    fi
     
     return 0
 }
