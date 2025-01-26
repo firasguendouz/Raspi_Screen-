@@ -1,182 +1,102 @@
-# Raspberry Pi Wi-Fi Configuration and Screen Management System
+# Raspberry Pi Screen Manager
 
-## 🎯 Overview
+A Python-based application for managing Raspberry Pi screen setup and configuration.
 
-This project transforms Raspberry Pi devices into intelligent display management systems with automated Wi-Fi setup and screen activation capabilities.
+## Current Status
 
-## 🔄 System Workflows
+### Working Features
+- Basic UI interface with PyWebView
+- Access Point setup script implementation
+- Network connection checking
+- QR code generation functionality
+- Service management (hostapd, dnsmasq, etc.)
+- Configuration file handling
+- Logging system
 
-### Connected Device Flow
-```mermaid
-graph TD
-    A[Start main.py] --> B[Launch PyWebView]
-    B --> C[Check Connection]
-    C --> D{Connected?}
-    D -->|Yes| E[Display Connected Status]
-    E --> F[Send Activation]
-    F --> G[Display Done]
-    G --> H[Stop PyWebView]
-    H --> I[End Process]
-```
+### Known Issues
+1. Access Point Mode:
+   - AP not visible to client devices
+   - hostapd service starts but interface may not be properly initialized
+   - "Too many arguments" error in AP setup script
 
-### New Setup Flow
-```mermaid
-graph TD
-    A[Start main.py] --> B[Launch PyWebView]
-    B --> C[Check Connection]
-    C --> D{Connected?}
-    D -->|No| E[Start Access Point]
-    E --> F[Display Loading]
-    F --> G[Show QR Code]
-    G --> H[Wait for Connection]
-    H --> I[Show Setup QR]
-    I --> J[User Scans & Connects]
-    J --> K[Process Credentials]
-    K --> L{Connection Success?}
-    L -->|Yes| M[Send Activation]
-    L -->|No| E
-    M --> N[Stop PyWebView]
-```
+2. QR Code:
+   - QR codes generate but don't display in UI
+   - Logo embedding fails due to missing logo file
+   - Need to verify QR code format for WiFi configuration
 
-## 🛠️ Core Components
+3. UI Issues:
+   - Message updates not consistently showing
+   - QR code display mechanism needs review
+   - Status updates may not be visible
 
-### 1. Network Management
-- **Access Point Control**: `ap/setup_ap.sh`, `ap/stop_ap.sh`
-- **Connection Monitoring**: `ap/check_connection.sh`
-- **Wi-Fi Configuration**: `scripts/connect_wifi.py`
+## Todo List
 
-### 2. User Interface
-- **Web Server**: Flask-based configuration portal
-- **Display Manager**: PyWebView full-screen interface
-- **QR Code Generator**: Easy network and setup access
+### High Priority
+1. Access Point Setup:
+   - [ ] Debug hostapd interface initialization
+   - [ ] Fix "Too many arguments" error in setup script
+   - [ ] Verify wireless interface configuration
+   - [ ] Test AP visibility on client devices
+   - [ ] Implement proper error handling for AP setup failures
 
-### 3. System Services
-- **Activation Client**: Device registration system
-- **Status Monitor**: Real-time system feedback
-- **Multi-language Support**: English/Spanish localization
+2. QR Code System:
+   - [ ] Fix QR code display in UI
+   - [ ] Create proper directory structure for logo and static files
+   - [ ] Verify WiFi QR code format compatibility with mobile devices
+   - [ ] Add error recovery for QR generation failures
 
-## 📁 Project Structure
+3. UI Improvements:
+   - [ ] Implement reliable message update system
+   - [ ] Add proper QR code display mechanism
+   - [ ] Enhance status feedback visibility
+   - [ ] Add progress indicators for long operations
 
-```
-raspi-setup/
-├── ap/                    # Access Point scripts
-│   ├── setup_ap.sh       # AP initialization
-│   ├── stop_ap.sh        # AP termination
-│   └── check_connection.sh # Connectivity monitor
-├── server/               # Web interface
-│   ├── app.py           # Flask application
-│   ├── qr_code.py       # QR generation
-│   └── templates/       # HTML views
-├── scripts/             # Core functionality
-│   ├── connect_wifi.py  # Network connection
-│   ├── send_activation.py # Device activation
-│   └── stream_url.py    # Content streaming
-└── ui_manager/          # PyWebView interface
-```
+### Medium Priority
+1. Network Management:
+   - [ ] Improve network status detection
+   - [ ] Add network configuration validation
+   - [ ] Implement connection quality monitoring
+   - [ ] Add support for different WiFi security types
 
-## 🚀 Getting Started
+2. System Configuration:
+   - [ ] Add configuration validation
+   - [ ] Implement configuration backup/restore
+   - [ ] Add user-configurable settings interface
+   - [ ] Improve service management reliability
 
-### Prerequisites
-- Raspberry Pi (3/4/Zero W)
-- Raspbian OS (Bullseye+)
-- Python 3.7+
-- Connected display
+3. Documentation:
+   - [ ] Complete API documentation
+   - [ ] Add troubleshooting guide
+   - [ ] Create development setup guide
+   - [ ] Document configuration options
 
-### Installation
+### Low Priority
+1. Features:
+   - [ ] Add support for custom AP configurations
+   - [ ] Implement connection history
+   - [ ] Add network diagnostics tools
+   - [ ] Create system status dashboard
 
-1. **Clone Repository**
-```bash
-git clone <repository-url>
-cd raspi-setup
-```
+2. Testing:
+   - [ ] Add unit tests for core functionality
+   - [ ] Create integration tests
+   - [ ] Add automated UI tests
+   - [ ] Implement performance testing
 
-2. **Setup Environment**
-```bash
-python3 -m venv env
-source env/bin/activate
-pip install -r requirements.txt
-```
+3. Optimization:
+   - [ ] Optimize service startup times
+   - [ ] Reduce memory usage
+   - [ ] Improve error recovery mechanisms
+   - [ ] Enhance logging system
 
-3. **Configure System**
-```bash
-sudo chmod +x ap/*.sh
-sudo chmod +x scripts/*.sh
-```
+## Development Setup
 
-4. **Environment Variables**
-Create `.env`:
-```bash
-SERVER_URL=http://your-server:5001
-SERVER_PORT=5001
-FLASK_ENV=production
-```
+[Development setup instructions...]
 
-5. **Launch Application**
-```bash
-sudo python3 main.py
-```
+## Contributing
 
-## 🔍 Development Guide
+[Contributing guidelines...]
 
-### Testing
-```bash
-# Full test suite
-python -m pytest
+## License
 
-# Component tests
-python test_qr_display.py
-python test_webview.py
-```
-
-### Adding Features
-1. Create feature branch
-2. Update components
-3. Add translations if needed
-4. Run tests
-5. Submit PR
-
-## 🐛 Troubleshooting
-
-### Common Issues
-1. **Network Connection Failed**
-   - Check `logs/connection.log`
-   - Verify network interface status
-   - Review AP configuration
-
-2. **Display Issues**
-   - Confirm PyWebView installation
-   - Check display connection
-   - Verify permissions
-
-3. **Activation Failed**
-   - Check server connectivity
-   - Verify credentials
-   - Review `logs/activation.log`
-
-## 📝 Notes
-
-### Important Files
-- [[main.py]] - Application entry point
-- [[server/app.py]] - Web server implementation
-- [[ui_manager/ui_manager.py]] - Display management
-
-### Related
-- [[Development Guide]]
-- [[Troubleshooting Guide]]
-- [[API Documentation]]
-
-## 🤝 Contributing
-1. Fork repository
-2. Create feature branch
-3. Follow coding standards
-4. Add tests
-5. Submit pull request
-
-## 📄 License
-[Your License]
-
-## 💬 Support
-[Contact Information]
-
----
-*Last updated: [Current Date]*
+[License information...]
