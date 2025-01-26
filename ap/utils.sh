@@ -534,5 +534,5 @@ restore_config_files() {
     return 0
 }
 
-# Call initialization
-init
+# Call initialization with default environment
+init "$DEFAULT_ENV" "$DEFAULT_INTERFACE" "$DEFAULT_LOG_DIR/ap_setup.log" "$DEFAULT_LOG_LEVEL"

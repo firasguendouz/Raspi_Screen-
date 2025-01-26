@@ -18,11 +18,13 @@
 # Usage:
 #   sudo ./setup_ap.sh [--test-mode]
 
-# Source common utility functions
-SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-source "$SCRIPT_DIR/utils.sh"
+# Source utility functions
+source "$(dirname "$0")/utils.sh"
 
-# Initialize environment with command line arguments
+# Check if running as root
+check_root
+
+# Initialize environment
 init_environment "$@"
 
 # Configuration
@@ -35,141 +37,101 @@ if [[ "$1" == "--test-mode" ]]; then
     log_info "Running in test mode"
 fi
 
-# Validate root privileges
-check_root
+# Stop interfering services
+log_info "Stopping interfering services..."
+stop_service "wpa_supplicant"
+stop_service "hostapd"
+stop_service "dnsmasq"
 
-# Stop interfering network services
-# Returns:
-#   0 on success, 1 on failure
-stop_services() {
-    log_info "Stopping interfering services..."
-    
-    # Stop wpa_supplicant first to release wireless interface
-    # This prevents conflicts with hostapd
-    stop_service "wpa_supplicant"
-    
-    # Stop AP services in reverse dependency order
-    # This ensures clean shutdown and prevents service conflicts
-    for service in "${REQUIRED_SERVICES[@]}"; do
-        stop_service "$service"
-    done
-}
+# Configure static IP for wlan0
+log_info "Configuring static IP for wlan0..."
+cat > /etc/dhcpcd.conf << EOF
+interface wlan0
+static ip_address=192.168.4.1/24
+nohook wpa_supplicant
+EOF
 
-# Function to copy and validate configurations
-# Creates necessary directories and copies config files
-# Returns:
-#   0 on success, 1 on failure
-setup_configurations() {
-    log_info "Setting up configuration files..."
-    
-    # Create required directories if they don't exist
-    mkdir -p /etc/hostapd
-    mkdir -p /etc/dnsmasq.d
-    
-    # Copy configuration files from template directory
-    local config_dir="$SCRIPT_DIR/../config"
-    
-    # Copy hostapd configuration
-    if [[ -f "$config_dir/hostapd.conf" ]]; then
-        copy_config "$config_dir/hostapd.conf" "$HOSTAPD_CONF"
-    else
-        log_error "hostapd.conf template not found"
-        return 1
-    fi
-    
-    # Copy dnsmasq configuration
-    if [[ -f "$config_dir/dnsmasq.conf" ]]; then
-        copy_config "$config_dir/dnsmasq.conf" "$DNSMASQ_CONF"
-    else
-        log_error "dnsmasq.conf template not found"
-        return 1
-    fi
-    
-    # Configure hostapd daemon to use our configuration
-    log_debug "Configuring hostapd daemon..."
-    sed -i 's|#DAEMON_CONF=""|DAEMON_CONF="/etc/hostapd/hostapd.conf"|' /etc/default/hostapd
-    validate_cmd "configure hostapd daemon" $?
-    
-    # Ensure wireless interface exists and is available
-    validate_interface "$AP_INTERFACE"
-    
-    return 0
-}
+# Configure hostapd
+log_info "Configuring hostapd..."
+mkdir -p /etc/hostapd
+cat > /etc/hostapd/hostapd.conf << EOF
+interface=wlan0
+driver=nl80211
+ssid=RaspberryPi_AP
+hw_mode=g
+channel=7
+wmm_enabled=0
+macaddr_acl=0
+auth_algs=1
+ignore_broadcast_ssid=0
+wpa=2
+wpa_passphrase=raspberry
+wpa_key_mgmt=WPA-PSK
+wpa_pairwise=TKIP
+rsn_pairwise=CCMP
+country_code=GB
+EOF
 
-# Configure network settings and firewall rules
-# Enables IP forwarding and sets up basic firewall
-# Returns:
-#   0 on success, 1 on failure
-setup_networking() {
-    log_info "Configuring network settings..."
-    
-    # Enable IP forwarding for AP functionality
-    echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/routed-ap.conf
-    if [[ "$AP_ENV" != "$ENV_TEST" ]]; then
-        sysctl -p /etc/sysctl.d/routed-ap.conf
-        validate_cmd "enable IP forwarding" $?
-        
-        # Configure firewall rules from environment settings
-        configure_firewall || return 1
-    fi
-}
+# Configure hostapd daemon
+log_debug "Configuring hostapd daemon..."
+echo 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' > /etc/default/hostapd
 
-# Start and verify all required services
-# Ensures services are enabled and running correctly
-# Returns:
-#   0 on success, 1 on failure
-start_services() {
-    log_info "Starting AP services..."
-    
-    if [[ "$AP_ENV" != "$ENV_TEST" ]]; then
-        # Unmask hostapd if it was masked
-        # This is necessary as hostapd might be masked by default
-        systemctl unmask hostapd
-        
-        # Start services in dependency order
-        # This ensures proper service initialization
-        for service in "${REQUIRED_SERVICES[@]}"; do
-            log_debug "Enabling and starting $service..."
-            enable_service "$service"
-            restart_service "$service"
-            
-            # Verify service status after start
-            if ! check_service "$service"; then
-                log_error "$service failed to start"
-                return 1
-            fi
-            log_debug "$service started successfully"
-        done
-    fi
-    return 0
-}
+# Configure dnsmasq
+log_info "Configuring dnsmasq..."
+cat > /etc/dnsmasq.conf << EOF
+interface=wlan0
+dhcp-range=192.168.4.2,192.168.4.20,255.255.255.0,24h
+domain=wlan
+address=/gw.wlan/192.168.4.1
+EOF
 
-# Main execution function
-# Orchestrates the AP setup process
-# Returns:
-#   0 on success, 1 on failure
-main() {
-    log_info "Starting Access Point setup..."
-    log_info "Environment: $AP_ENV"
-    log_info "Interface: $AP_INTERFACE"
-    log_info "SSID: $AP_SSID"
-    
-    # Execute setup steps in sequence
-    stop_services || exit 1
-    setup_configurations || exit 1
-    setup_networking || exit 1
-    
-    if start_services; then
-        log_info "Access Point setup completed successfully!"
-        log_info "SSID: $AP_SSID"
-        log_info "Password: $AP_PASSPHRASE"
-        return 0
-    else
-        log_error "Failed to setup Access Point"
-        return 1
-    fi
-}
+# Enable IP forwarding
+log_info "Configuring network settings..."
+echo 1 > /proc/sys/net/ipv4/ip_forward
+echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/routed-ap.conf
+sysctl -p /etc/sysctl.d/routed-ap.conf
 
-# Execute main function and exit with its status
-main
-exit $?
+# Configure firewall rules
+log_debug "Configuring firewall rules..."
+iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+iptables -A FORWARD -i eth0 -o wlan0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+iptables -A FORWARD -i wlan0 -o eth0 -j ACCEPT
+
+# Start AP services
+log_info "Starting AP services..."
+
+# Unmask and enable hostapd
+systemctl unmask hostapd
+systemctl enable hostapd
+
+# Start services with proper error handling
+if ! systemctl restart dhcpcd; then
+    log_error "Failed to restart dhcpcd"
+    exit 1
+fi
+
+if ! systemctl restart dnsmasq; then
+    log_error "Failed to restart dnsmasq"
+    exit 1
+fi
+
+# Start hostapd with detailed error checking
+log_debug "Starting hostapd..."
+if ! systemctl restart hostapd; then
+    log_error "Failed to start hostapd"
+    journalctl -xe --no-pager -u hostapd
+    exit 1
+fi
+
+# Verify services are running
+if systemctl is-active --quiet hostapd && \
+   systemctl is-active --quiet dnsmasq && \
+   systemctl is-active --quiet dhcpcd; then
+    log_info "Access Point setup completed successfully"
+    log_info "SSID: RaspberryPi_AP"
+    log_info "Password: raspberry"
+    exit 0
+else
+    log_error "One or more services failed to start"
+    exit 1
+fi
