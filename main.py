@@ -58,9 +58,10 @@ class SetupManager:
         # Generate and display WiFi QR code
         self.log("Generating WiFi QR code...")
         wifi_qr = generate_wifi_qr(
-            self.config["network"]["ap_ssid"],
-            self.config["network"]["ap_password"],
-            str(self.config["paths"]["wifi_qr"])
+            ssid=self.config["network"]["ap_ssid"],
+            password=self.config["network"]["ap_password"],
+            security="WPA",
+            output_file=str(self.config["paths"]["wifi_qr"])
         )
         
         if not wifi_qr:

@@ -214,7 +214,8 @@ def generate_wifi_qr(
     security: str = "WPA",
     color: str = DEFAULT_COLOR,
     add_logo_flag: bool = True,
-    cache: Optional[QRCodeCache] = None
+    cache: Optional[QRCodeCache] = None,
+    output_file: Optional[str] = None
 ) -> str:
     """Generate QR code for WiFi configuration.
 
@@ -225,6 +226,7 @@ def generate_wifi_qr(
         color: QR code color
         add_logo_flag: Whether to add logo
         cache: Optional QR code cache
+        output_file: Optional output file path
 
     Returns:
         Path to generated QR code image
@@ -238,40 +240,39 @@ def generate_wifi_qr(
         raise ValidationError(f"Invalid security type: {security}")
 
     # Prepare QR code data
-    data = {
-        "ssid": ssid,
-        "password": password,
-        "security": security,
-        "color": color,
-        "add_logo": add_logo_flag
-    }
-
-    # Check cache
-    if cache:
-        cached_path = cache.get(data)
-        if cached_path:
-            return cached_path
-
-    # Generate WiFi configuration string
-    wifi_string = f"WIFI:T:{security};S:{ssid};P:{password};;"
-
-    # Create QR code
-    qr_image = create_styled_qr(wifi_string, color=color)
+    wifi_data = f"WIFI:S:{ssid};T:{security};P:{password};;"
+    
+    # Generate QR code
+    qr_image = create_styled_qr(wifi_data, color)
+    
     if add_logo_flag:
-        qr_image = add_logo(qr_image)
+        try:
+            qr_image = add_logo(qr_image)
+        except ConfigurationError as e:
+            logger.warning(f"Failed to add logo: {e}")
 
     # Save QR code
-    output_dir = os.path.join(os.path.dirname(__file__), "static/qr")
-    os.makedirs(output_dir, exist_ok=True)
+    if output_file:
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        qr_image.save(output_file)
+        return output_file
     
-    temp_path = os.path.join(output_dir, f"temp_{datetime.now().timestamp()}.png")
-    qr_image.save(temp_path)
-
-    # Add to cache if enabled
+    # Use cache if available
     if cache:
-        return cache.put(data, temp_path)
+        temp_file = os.path.join(os.path.dirname(__file__), "temp_qr.png")
+        qr_image.save(temp_file)
+        return cache.put({
+            "type": "wifi",
+            "ssid": ssid,
+            "security": security,
+            "color": color,
+            "add_logo": add_logo_flag
+        }, temp_file)
     
-    return temp_path
+    # Default to temporary file
+    temp_file = os.path.join(os.path.dirname(__file__), "wifi_qr.png")
+    qr_image.save(temp_file)
+    return temp_file
 
 # Initialize cache
 qr_cache = QRCodeCache()
