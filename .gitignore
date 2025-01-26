@@ -56,3 +56,6 @@ Thumbs.db
 ap/tmp/
 *.bak
 .obsidian/workspace.json
+connect_wifi.py
+stop_ap.sh
+logs_from_raspi
