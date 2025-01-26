@@ -444,7 +444,7 @@ copy_config_file() {
     if [[ ! -f "$source_file" ]]; then
         log_error "Configuration file not found: $source_file"
         return 1
-    }
+    fi
     
     log_debug "Copying configuration: $source_file -> $dest_file"
     cp "$source_file" "$dest_file"
@@ -526,10 +526,10 @@ restore_config_files() {
     log_info "Restoring configuration files..."
     
     # Restore each configuration file from backup
-    restore_config_file "$HOSTAPD_CONF" || return 1
-    restore_config_file "$DNSMASQ_CONF" || return 1
-    restore_config_file "$DHCPCD_CONF" || return 1
-    restore_config_file "$WPA_SUPPLICANT_CONF" || return 1
+    restore_config_file "$HOSTAPD_CONF"
+    restore_config_file "$DNSMASQ_CONF"
+    restore_config_file "$DHCPCD_CONF"
+    restore_config_file "$WPA_SUPPLICANT_CONF"
     
     return 0
 }

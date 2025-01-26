@@ -62,8 +62,28 @@ stop_services() {
 setup_configurations() {
     log_info "Setting up configuration files..."
     
-    # Set up all configuration files using utility function
-    setup_config_files || return 1
+    # Create required directories if they don't exist
+    mkdir -p /etc/hostapd
+    mkdir -p /etc/dnsmasq.d
+    
+    # Copy configuration files from template directory
+    local config_dir="$SCRIPT_DIR/../config"
+    
+    # Copy hostapd configuration
+    if [[ -f "$config_dir/hostapd.conf" ]]; then
+        copy_config "$config_dir/hostapd.conf" "$HOSTAPD_CONF"
+    else
+        log_error "hostapd.conf template not found"
+        return 1
+    fi
+    
+    # Copy dnsmasq configuration
+    if [[ -f "$config_dir/dnsmasq.conf" ]]; then
+        copy_config "$config_dir/dnsmasq.conf" "$DNSMASQ_CONF"
+    else
+        log_error "dnsmasq.conf template not found"
+        return 1
+    fi
     
     # Configure hostapd daemon to use our configuration
     log_debug "Configuring hostapd daemon..."
@@ -72,6 +92,8 @@ setup_configurations() {
     
     # Ensure wireless interface exists and is available
     validate_interface "$AP_INTERFACE"
+    
+    return 0
 }
 
 # Configure network settings and firewall rules
