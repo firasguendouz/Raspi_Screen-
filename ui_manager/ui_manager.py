@@ -457,3 +457,52 @@ class UIManager:
     def run(self):
         """Run the UI manager."""
         webview.start()
+
+    def create_ui(self, on_ready_callback=None):
+        """Create and display the UI window."""
+        try:
+            # Create window with initial HTML
+            self.window = webview.create_window(
+                self.window_title,
+                html=self._generate_initial_html(),
+                js_api=self
+            )
+            
+            # Set callback for when window is ready
+            if on_ready_callback:
+                webview.start(on_ready_callback)
+            else:
+                webview.start()
+                
+            logger.info("UI created successfully")
+            
+        except Exception as e:
+            logger.error(f"Failed to create UI: {e}")
+            raise
+
+    def close_ui(self):
+        """Close the UI window."""
+        if self.window:
+            self.window.destroy()
+            logger.info("UI closed")
+
+    def update_ui(self, message: str, image_path: str = None):
+        """Update UI with message and optional image."""
+        if self.window:
+            js_code = f"updateMessage('{message}')"
+            self.window.evaluate_js(js_code)
+            
+            if image_path and os.path.exists(image_path):
+                js_code = f"updateImage('{image_path}')"
+                self.window.evaluate_js(js_code)
+
+    def display_qr_code(self, qr_path: str, message: str = None):
+        """Display QR code with optional message."""
+        if self.window and os.path.exists(qr_path):
+            if message:
+                js_code = f"updateMessage('{message}')"
+                self.window.evaluate_js(js_code)
+            
+            js_code = f"updateImage('{qr_path}')"
+            self.window.evaluate_js(js_code)
+            self.state.qr_visible = True
