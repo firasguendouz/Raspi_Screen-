@@ -266,30 +266,18 @@ class UIManager:
                     justify-content: center;
                     padding: 20px;
                 }}
-                #feedback {{
-                    height: 60px;
-                    padding: 10px;
+                #message {{
+                    margin-bottom: 20px;
+                    text-align: center;
+                    font-size: 1.2em;
+                }}
+                #image-container {{
+                    max-width: 100%;
                     text-align: center;
                 }}
-                .qr-container {{
-                    position: relative;
-                    width: 300px;
-                    height: 300px;
-                }}
-                .qr-fallback {{
-                    position: absolute;
-                    bottom: 10px;
-                    right: 10px;
-                    width: 100px;
-                    height: 100px;
-                }}
-                @keyframes pulse {{
-                    0% {{ transform: scale(1); }}
-                    50% {{ transform: scale(1.05); }}
-                    100% {{ transform: scale(1); }}
-                }}
-                .pulse {{
-                    animation: pulse 2s infinite;
+                #main-image {{
+                    max-width: 100%;
+                    height: auto;
                 }}
             </style>
         </head>
@@ -299,40 +287,43 @@ class UIManager:
                 <span id="status-time"></span>
             </div>
             <div id="content">
-                <div class="qr-container">
-                    <img id="qr-main" style="display: none;">
-                    <img id="qr-fallback" class="qr-fallback" style="display: none;">
+                <div id="message"></div>
+                <div id="image-container">
+                    <img id="main-image" style="display: none;">
                 </div>
             </div>
-            <div id="feedback"></div>
             <script>
-                // JavaScript for UI updates and animations
+                function updateMessage(message) {{
+                    const messageElement = document.getElementById('message');
+                    if (messageElement) {{
+                        messageElement.textContent = message;
+                    }}
+                    const statusMessage = document.getElementById('status-message');
+                    if (statusMessage) {{
+                        statusMessage.textContent = message;
+                    }}
+                }}
+
+                function updateImage(imagePath) {{
+                    const image = document.getElementById('main-image');
+                    if (image) {{
+                        image.src = imagePath;
+                        image.style.display = 'block';
+                    }}
+                }}
+
                 function updateStatus(message, color) {{
                     const statusBar = document.getElementById('status-bar');
                     const statusMessage = document.getElementById('status-message');
-                    statusBar.style.backgroundColor = color;
-                    statusMessage.textContent = message;
-                }}
-
-                function updateQR(mainSrc, fallbackSrc) {{
-                    const mainQR = document.getElementById('qr-main');
-                    const fallbackQR = document.getElementById('qr-fallback');
-                    
-                    if (mainSrc) {{
-                        mainQR.src = mainSrc;
-                        mainQR.style.display = 'block';
-                    }}
-                    
-                    if (fallbackSrc) {{
-                        fallbackQR.src = fallbackSrc;
-                        fallbackQR.style.display = 'block';
+                    if (statusBar && statusMessage) {{
+                        statusBar.style.backgroundColor = color;
+                        statusMessage.textContent = message;
                     }}
                 }}
 
                 function showError(message) {{
-                    const feedback = document.getElementById('feedback');
-                    feedback.textContent = message;
-                    feedback.style.color = '#dc3545';
+                    updateMessage(message);
+                    updateStatus(message, '#dc3545');
                 }}
             </script>
         </body>
